@@ -5,6 +5,19 @@ import { useAuth } from "@/contexts/AuthContext";
 import { CheckCircle2, FilePlus, Package } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+function getFirstName(name?: string | null) {
+  if (!name) return "User";
+  return name.trim().split(" ")[0];
+}
+
+function getGreeting() {
+  const hour = new Date().getHours();
+
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 // REPLACE the stats section with this:
 export default function DashboardPage() {
   const router = useRouter();
@@ -16,11 +29,11 @@ export default function DashboardPage() {
         {/* Header with User Info */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
-            <p className="text-gray-600">
-              Welcome back,{" "}
-              {userProfile?.displayName || user?.displayName || "User"}
-            </p>
+            <h1 className="text-3xl font-bold mb-2">
+              {getGreeting()},{" "}
+              {getFirstName(userProfile?.displayName || user?.displayName)}!
+            </h1>
+
             {userProfile?.createdAt && (
               <p className="text-sm text-gray-500">
                 Member since{" "}
@@ -31,7 +44,11 @@ export default function DashboardPage() {
               </p>
             )}
           </div>
-          <Button size="lg" onClick={() => router.push("/dashboard/new")}>
+          <Button
+            size="lg"
+            onClick={() => router.push("/dashboard/new")}
+            className="cursor-pointer"
+          >
             <FilePlus className="mr-2 h-5 w-5" />
             New Split
           </Button>
