@@ -55,10 +55,10 @@ export function TeamSwitcher({
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
-            align="start"
+            className="w-64 min-w-64 max-w-[calc(100vw-2rem)] rounded-lg"
             side={isMobile ? "bottom" : "right"}
-            sideOffset={4}
+            align={isMobile ? "start" : "start"}
+            sideOffset={8}
           >
             <DropdownMenuLabel className="text-muted-foreground text-xs">
               Tools

@@ -1,3 +1,7 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -8,8 +12,32 @@ import {
 } from "@/components/ui/card";
 import Image from "next/image";
 import logo from "@/public/drexel-logo.png";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRouter } from "next/navigation";
+
+import { Loader2 } from "lucide-react";
 
 export default function Home() {
+  const { user, loading, signInWithGoogle } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (user && !loading) {
+      router.push("/dashboard");
+    }
+  }, [user, loading, router]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (user) {
+    return null; // Will redirect
+  }
   return (
     <div className="flex items-center justify-center min-h-screen p-4 bg-background">
       <Card className="w-full max-w-md shadow-lg border border-border bg-card">
@@ -18,11 +46,11 @@ export default function Home() {
             <Image src={logo} alt="Drexel Logo" width={260} height={260} />
           </div>
           <div className="space-y-2">
-            <CardTitle className="text-3xl font-bold tracking-tight">
+            <CardTitle className="text-3xl font-bold tracking-tight text-foreground">
               Special Operations App
             </CardTitle>
             <CardDescription className="text-base">
-              Sign in to access your account
+              Built for Drexel Kewaskum Warehouse
             </CardDescription>
           </div>
         </CardHeader>
@@ -30,6 +58,7 @@ export default function Home() {
           <Button
             className="w-full h-11 text-base font-medium cursor-pointer"
             size="lg"
+            onClick={signInWithGoogle}
           >
             <svg
               className="mr-2 h-5 w-5"
