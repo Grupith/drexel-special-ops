@@ -26,6 +26,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 export function NavUser({
   user,
@@ -99,6 +100,7 @@ export function NavUser({
                 // and allow us to run async logout.
                 e.preventDefault();
                 await logout();
+                toast.success("Logged out successfully");
               }}
             >
               <LogOut />

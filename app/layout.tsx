@@ -6,6 +6,7 @@ import "./globals.css";
 
 import { AuthProvider } from "@/contexts/AuthContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "@/components/ui/sonner";
 
 const sourceSans = Source_Sans_3({
   variable: "--font-source-sans",
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body className={`${sourceSans.variable} antialiased`}>
         <Providers>{children}</Providers>
+        <Toaster position="top-center" />
       </body>
     </html>
   );

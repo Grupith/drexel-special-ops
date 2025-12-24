@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,8 +13,8 @@ import {
 import Image from "next/image";
 import logo from "@/public/drexel-logo.png";
 import { useAuth } from "@/contexts/AuthContext";
-
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export default function Home() {
   const { user, loading, signInWithGoogle } = useAuth();
@@ -23,6 +23,7 @@ export default function Home() {
   useEffect(() => {
     if (user && !loading) {
       router.push("/dashboard");
+      toast.success("Successfully logged in!");
     }
   }, [user, loading, router]);
 
@@ -49,7 +50,7 @@ export default function Home() {
               Special Operations App
             </CardTitle>
             <CardDescription className="text-base">
-              Built for Drexel Kewaskum Warehouse
+              Built for Kewaskum Receiving Team
             </CardDescription>
           </div>
         </CardHeader>
