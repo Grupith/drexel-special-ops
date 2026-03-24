@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { CheckCircle2, FilePlus, Package } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { NewSplitModal } from "@/components/NewSplitModal";
 
 function getFirstName(name?: string | null) {
   if (!name) return "User";
@@ -20,7 +20,6 @@ function getGreeting() {
 
 // REPLACE the stats section with this:
 export default function DashboardPage() {
-  const router = useRouter();
   const { user, userProfile } = useAuth();
 
   return (
@@ -44,14 +43,18 @@ export default function DashboardPage() {
               </p>
             )}
           </div>
-          <Button
-            size="lg"
-            onClick={() => router.push("/dashboard/new")}
-            className="cursor-pointer"
-          >
-            <FilePlus className="mr-2 h-5 w-5" />
-            New Split
-          </Button>
+          <NewSplitModal
+            vendors={[
+              { id: "SHAW", name: "SHAW" },
+              { id: "test vendor", name: "test vendor" },
+            ]}
+            trigger={
+              <Button size="lg" className="cursor-pointer">
+                <FilePlus className="mr-2 h-5 w-5" />
+                New Split
+              </Button>
+            }
+          />
         </div>
 
         {/* Stats Cards - Now with User Stats */}
