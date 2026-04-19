@@ -6,7 +6,7 @@ import {
   serverTimestamp,
   increment,
 } from "firebase/firestore";
-import { db } from "./db";
+import { db } from "@/lib/firebase/config";
 import { UserProfile } from "@/types";
 
 /**
@@ -89,7 +89,7 @@ export async function updateLastLogin(uid: string) {
  */
 export async function updateUserPreferences(
   uid: string,
-  preferences: Partial<UserProfile["preferences"]>
+  preferences: Partial<UserProfile["preferences"]>,
 ) {
   try {
     const userRef = doc(db, "users", uid);
@@ -108,7 +108,7 @@ export async function updateUserPreferences(
  */
 export async function incrementUserStats(
   uid: string,
-  field: "totalSplits" | "completedSplits"
+  field: "totalSplits" | "completedSplits",
 ) {
   try {
     const userRef = doc(db, "users", uid);

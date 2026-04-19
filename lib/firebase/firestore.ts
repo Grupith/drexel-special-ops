@@ -8,7 +8,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 
-import { db } from "./db";
+import { db } from "@/lib/firebase/config";
 
 import { incrementUserStats } from "./users";
 import { SplitDocument } from "@/types";
@@ -47,7 +47,7 @@ export async function updateSplit(
     masterDocumentUrl: string;
     splitDocuments: SplitDocument[];
     error: string;
-  }>
+  }>,
 ) {
   try {
     const docRef = doc(db, "splits", splitId);

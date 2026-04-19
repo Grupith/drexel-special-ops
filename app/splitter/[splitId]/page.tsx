@@ -3,10 +3,17 @@
 import * as React from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { doc, getDoc, Timestamp } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
+  Timestamp,
+} from "firebase/firestore";
 
 import { db } from "@/lib/firebase/db";
-const fakePreviewCards = [1, 2, 3, 4, 5, 6];
 
 type SplitDoc = {
   vendorId: string;
@@ -18,6 +25,17 @@ type SplitDoc = {
   originalImageUrl: string;
   fileName: string;
   comment?: string;
+};
+
+type SubSplitDoc = {
+  poNumber?: string;
+  order?: number;
+  sourcePage?: number;
+  generatedImagePath?: string;
+  generatedImageUrl?: string;
+  status?: string;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 };
 
 function isImageFile(fileName: string) {
@@ -50,6 +68,7 @@ export default function SplitViewPage() {
   const [loading, setLoading] = React.useState(true);
   const [notFound, setNotFound] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [subSplits, setSubSplits] = React.useState<SubSplitDoc[]>([]);
 
   React.useEffect(() => {
     async function loadSplit() {
@@ -66,13 +85,25 @@ export default function SplitViewPage() {
         if (!splitSnap.exists()) {
           setNotFound(true);
           setSplit(null);
+          setSubSplits([]);
           return;
         }
 
         setSplit(splitSnap.data() as SplitDoc);
+
+        const subSplitsRef = collection(db, "splits", splitId, "subSplits");
+        const subSplitsQuery = query(subSplitsRef, orderBy("order", "asc"));
+        const subSplitsSnap = await getDocs(subSplitsQuery);
+
+        const subSplitsData = subSplitsSnap.docs.map(
+          (subSplitDoc) => subSplitDoc.data() as SubSplitDoc,
+        );
+
+        setSubSplits(subSplitsData);
       } catch (err) {
         console.error("Failed to load split:", err);
         setError("Failed to load split.");
+        setSubSplits([]);
       } finally {
         setLoading(false);
       }
@@ -208,48 +239,81 @@ export default function SplitViewPage() {
           <div className="mb-4">
             <h2 className="font-semibold">Generated Split Previews</h2>
             <p className="text-sm text-muted-foreground">
-              Placeholder previews for where finished PO split documents will
-              appear.
+              Real PO split previews will appear here as sub-splits are created.
             </p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {fakePreviewCards.map((card) => (
-              <div
-                key={card}
-                className="group rounded-xl border bg-background p-3 text-left shadow-sm transition hover:-translate-y-0.5"
-              >
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Preview {card}
-                    </p>
-                    <p className="text-sm font-medium">PO Split Placeholder</p>
-                  </div>
-                  <span className="rounded-md border px-2 py-1 text-[11px] text-muted-foreground">
-                    Pending
-                  </span>
-                </div>
-
-                <div className="aspect-[8.5/11] rounded-lg border bg-muted/40 p-3">
-                  <div className="flex h-full flex-col justify-between rounded-md border border-dashed bg-background/70 p-3">
-                    <div className="space-y-2">
-                      <div className="h-3 w-24 rounded bg-muted" />
-                      <div className="h-2 w-full rounded bg-muted" />
-                      <div className="h-2 w-5/6 rounded bg-muted" />
-                      <div className="h-2 w-2/3 rounded bg-muted" />
+          {split.status === "processing" && subSplits.length === 0 ? (
+            <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+              Processing split previews. Generated PO pages will appear here
+              once they are ready.
+            </div>
+          ) : split.status === "failed" ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+              This split failed during processing. Once error handling is wired
+              in, you can show more details here.
+            </div>
+          ) : subSplits.length === 0 ? (
+            <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+              No sub-splits have been generated yet.
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {subSplits.map((subSplit, index) => (
+                <div
+                  key={`${subSplit.poNumber ?? "subsplit"}-${index}`}
+                  className="group rounded-xl border bg-background p-3 text-left shadow-sm transition hover:-translate-y-0.5"
+                >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        PO Preview
+                      </p>
+                      <p className="text-sm font-medium">
+                        {subSplit.poNumber
+                          ? `PO ${subSplit.poNumber}`
+                          : `Split ${index + 1}`}
+                      </p>
                     </div>
-
-                    <div className="space-y-2">
-                      <div className="h-2 w-full rounded bg-muted" />
-                      <div className="h-2 w-4/5 rounded bg-muted" />
-                      <div className="h-16 rounded bg-muted/70" />
-                    </div>
+                    <span className="rounded-md border px-2 py-1 text-[11px] capitalize text-muted-foreground">
+                      {subSplit.status ?? "pending"}
+                    </span>
                   </div>
+
+                  {subSplit.generatedImageUrl ? (
+                    <div className="space-y-3">
+                      <img
+                        src={subSplit.generatedImageUrl}
+                        alt={
+                          subSplit.poNumber
+                            ? `PO ${subSplit.poNumber} preview`
+                            : `Split ${index + 1} preview`
+                        }
+                        className="aspect-[8.5/11] w-full rounded-lg border bg-muted/20 object-contain"
+                      />
+
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>
+                          {typeof subSplit.sourcePage === "number"
+                            ? `Source page ${subSplit.sourcePage}`
+                            : "Source page pending"}
+                        </span>
+                        {typeof subSplit.order === "number" ? (
+                          <span>Order {subSplit.order}</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="aspect-[8.5/11] rounded-lg border border-dashed bg-muted/30 p-3">
+                      <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
+                        Preview image not ready yet.
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

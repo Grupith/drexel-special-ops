@@ -7,9 +7,14 @@
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
 
-const {setGlobalOptions} = require("firebase-functions");
-const {onRequest} = require("firebase-functions/https");
+const { setGlobalOptions } = require("firebase-functions");
+const { onRequest } = require("firebase-functions/https");
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const logger = require("firebase-functions/logger");
+
+const admin = require("firebase-admin");
+admin.initializeApp();
+const db = admin.firestore();
 
 // For cost control, you can set the maximum number of containers that can be
 // running at the same time. This helps mitigate the impact of unexpected
@@ -30,3 +35,37 @@ setGlobalOptions({ maxInstances: 10 });
 //   logger.info("Hello logs!", {structuredData: true});
 //   response.send("Hello from Firebase!");
 // });
+
+exports.onSplitCreated = onDocumentCreated(
+  "splits/{splitId}",
+  async (event) => {
+    const snapshot = event.data;
+
+    if (!snapshot) {
+      logger.log("No split document data found.");
+      return;
+    }
+
+    const splitData = snapshot.data();
+    const createdBy = splitData.createdBy;
+
+    if (!createdBy || typeof createdBy !== "string") {
+      logger.log("Split missing valid createdBy field.");
+      return;
+    }
+
+    const userRef = db.collection("users").doc(createdBy);
+
+    await userRef.set(
+      {
+        stats: {
+          totalSplits: admin.firestore.FieldValue.increment(1),
+        },
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+
+    logger.log(`Incremented totalSplits for user ${createdBy}`);
+  },
+);
