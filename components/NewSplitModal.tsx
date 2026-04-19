@@ -28,6 +28,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
+import { FolderUp, NotebookPen, ScrollText, Store, Upload } from "lucide-react";
 
 type VendorOption = { id: string; name: string };
 
@@ -50,24 +53,6 @@ export function NewSplitModal({
   const [vendorId, setVendorId] = React.useState("");
   const [comment, setComment] = React.useState("");
   const [file, setFile] = React.useState<File | null>(null);
-  const [imagePreviewUrl, setImagePreviewUrl] = React.useState<string | null>(
-    null,
-  );
-
-  React.useEffect(() => {
-    // Only preview images
-    if (!file || !file.type.startsWith("image/")) {
-      setImagePreviewUrl(null);
-      return;
-    }
-
-    const url = URL.createObjectURL(file);
-    setImagePreviewUrl(url);
-
-    return () => {
-      URL.revokeObjectURL(url);
-    };
-  }, [file]);
 
   const [errors, setErrors] = React.useState<{
     vendorId?: string;
@@ -79,7 +64,6 @@ export function NewSplitModal({
     setVendorId("");
     setComment("");
     setFile(null);
-    setImagePreviewUrl(null);
     setErrors({});
 
     // Clear the native file input so the same file can be re-selected
@@ -171,104 +155,162 @@ export function NewSplitModal({
         {trigger ?? <Button>New Split</Button>}
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-[560px]">
-        <DialogHeader>
-          <DialogTitle>New Split</DialogTitle>
-          <DialogDescription>
-            Upload the master document, choose a vendor, and add an optional
-            note.
-          </DialogDescription>
+      <DialogContent className="border-border/70 bg-linear-to-br from-background via-card to-secondary/50 p-0 shadow-xl sm:max-w-160">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-linear-to-b from-accent/70 to-transparent"
+        />
+
+        <DialogHeader className="relative shrink-0 gap-3 border-b border-border/60 bg-secondary/75 px-4 pt-4 pb-3 text-left sm:px-6 sm:pt-5 sm:pb-4">
+          <div className="flex items-align gap-3 sm:gap-4">
+            <div className="flex size-10 items-center justify-center rounded-xl border border-border/70 bg-background/85 text-foreground shadow-sm backdrop-blur-sm sm:size-12 sm:rounded-2xl">
+              <ScrollText className="size-4 sm:size-5" />
+            </div>
+            <div className="space-y-1">
+              <DialogTitle className="font-serif text-xl tracking-tight sm:text-xl">
+                New split
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground sm:text-sm">
+                Upload a file and choose a vendor.
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
-        <form className="space-y-5" onSubmit={handleSubmit}>
-          {/* Vendor */}
-          <div className="space-y-2">
-            <Label>Vendor</Label>
-            <Select
-              value={vendorId}
-              onValueChange={(v) => {
-                setVendorId(v);
-                setErrors((prev) => ({ ...prev, vendorId: undefined }));
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select a vendor" />
-              </SelectTrigger>
-              <SelectContent>
-                {vendors.map((v) => (
-                  <SelectItem
-                    key={v.id}
-                    value={v.id}
-                    className="cursor-pointer"
+        <form
+          className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain"
+          onSubmit={handleSubmit}
+        >
+          <div className="space-y-4 px-4 pt-4 pb-6 sm:px-6 sm:pt-5 sm:pb-8">
+            <div className="space-y-2.5 sm:space-y-3">
+              {/* Vendor Selection */}
+
+              <div className="space-y-2.5 rounded-[calc(var(--radius)+6px)] bg-card/20 p-3 sm:space-y-3 sm:p-4">
+                <Label
+                  htmlFor="vendor"
+                  className="flex items-center gap-2 text-[13px] font-medium sm:text-sm"
+                >
+                  <Store className="size-4 text-muted-foreground" />
+                  Vendor
+                </Label>
+                <Select
+                  value={vendorId}
+                  onValueChange={(v) => {
+                    setVendorId(v);
+                    setErrors((prev) => ({ ...prev, vendorId: undefined }));
+                  }}
+                >
+                  <SelectTrigger
+                    id="vendor"
+                    className="h-12 w-full rounded-lg border-border/80 bg-background/80 text-sm shadow-xs backdrop-blur-sm"
                   >
-                    {v.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.vendorId ? (
-              <p className="text-sm text-destructive">{errors.vendorId}</p>
-            ) : null}
-          </div>
-
-          {/* File */}
-          <div className="space-y-2">
-            <Label htmlFor="file">Master document</Label>
-            <Input
-              id="file"
-              type="file"
-              accept="application/pdf,image/*"
-              ref={fileInputRef}
-              onChange={(e) => {
-                const f = e.target.files?.[0] ?? null;
-                setFile(f);
-                setErrors((prev) => ({ ...prev, file: undefined }));
-              }}
-            />
-            {file ? (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  Selected: <span className="font-medium">{file.name}</span>
-                </p>
-
-                {imagePreviewUrl ? (
-                  <div className="inline-flex items-center gap-3">
-                    <div className="h-16 w-16 overflow-hidden rounded-md border bg-muted">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={imagePreviewUrl}
-                        alt="Upload preview"
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {Math.round(file.size / 1024)} KB
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    {file.type || "File"} • {Math.round(file.size / 1024)} KB
-                  </p>
-                )}
+                    <SelectValue placeholder="Select a vendor" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-lg border-border/80 bg-popover/95 shadow-lg backdrop-blur-md">
+                    {vendors.map((v) => (
+                      <SelectItem
+                        key={v.id}
+                        value={v.id}
+                        className="cursor-pointer rounded-lg"
+                      >
+                        {v.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.vendorId ? (
+                  <p className="text-sm text-destructive">{errors.vendorId}</p>
+                ) : null}
               </div>
-            ) : null}
-            {errors.file ? (
-              <p className="text-sm text-destructive">{errors.file}</p>
-            ) : null}
+
+              {/* Comment */}
+
+              <div className="space-y-2.5 rounded-[calc(var(--radius)+6px)] p-3 sm:space-y-3 sm:p-4">
+                <Label
+                  htmlFor="comment"
+                  className="flex items-center gap-2 text-[13px] font-medium sm:text-sm"
+                >
+                  <NotebookPen className="size-4 text-muted-foreground" />
+                  Comment (optional)
+                </Label>
+                <Textarea
+                  id="comment"
+                  placeholder="Any notes..."
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  className="min-h-24 rounded-lg border-border/80 bg-background/70 px-3.5 py-3 text-sm shadow-xs backdrop-blur-sm sm:min-h-28"
+                />
+              </div>
+
+              {/* Master Document */}
+
+              <div className="space-y-2.5 rounded-[calc(var(--radius)+6px)] p-3 sm:space-y-3 sm:p-4">
+                <Label
+                  htmlFor="file"
+                  className="flex items-center gap-2 text-[13px] font-medium sm:text-sm"
+                >
+                  <FolderUp className="size-4 text-muted-foreground" />
+                  Master document
+                </Label>
+
+                <div
+                  className={cn(
+                    "relative rounded-xl border border-border/70 bg-background/75 transition-colors",
+                    file
+                      ? "border-primary/30 bg-primary/5"
+                      : "hover:bg-accent/30",
+                  )}
+                >
+                  <Input
+                    id="file"
+                    type="file"
+                    accept="application/pdf,image/*"
+                    ref={fileInputRef}
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      setFile(f);
+                      setErrors((prev) => ({ ...prev, file: undefined }));
+                    }}
+                  />
+
+                  <div className="flex min-h-32 items-center justify-center px-4 py-6 text-center">
+                    {file ? (
+                      <div className="space-y-1">
+                        <div className="mx-auto mb-2 flex size-10 items-center justify-center rounded-full border border-border/70 bg-background/80 text-foreground shadow-sm">
+                          <Upload className="size-4" />
+                        </div>
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {file.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Tap to replace
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <div className="mx-auto mb-2 flex size-10 items-center justify-center rounded-full border border-border/70 bg-background/80 text-foreground shadow-sm">
+                          <Upload className="size-4" />
+                        </div>
+                        <p className="text-sm font-medium text-foreground">
+                          Upload file
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          PDF or image
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {errors.file ? (
+                  <p className="text-sm text-destructive">{errors.file}</p>
+                ) : null}
+              </div>
+            </div>
           </div>
 
-          {/* Comment */}
-          <div className="space-y-2">
-            <Label htmlFor="comment">Comment (optional)</Label>
-            <Input
-              id="comment"
-              placeholder="Anything receiving should know…"
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-            />
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-3">
+          <DialogFooter className="grid grid-cols-2 gap-3 border-t border-border/60 px-4 py-4 sm:px-6 sm:py-4">
             <Button
               type="button"
               variant="outline"
@@ -276,11 +318,16 @@ export function NewSplitModal({
                 resetForm();
                 setOpen(false);
               }}
+              className="min-h-12 w-full rounded-lg px-4 text-sm shadow-sm cursor-pointer"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? "Creating…" : "Split"}
+            <Button
+              type="submit"
+              disabled={submitting}
+              className="min-h-12 w-full rounded-lg px-4 text-sm shadow-sm cursor-pointer"
+            >
+              {submitting ? "Creating..." : "Create Split"}
             </Button>
           </DialogFooter>
         </form>

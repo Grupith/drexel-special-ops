@@ -224,7 +224,7 @@ export default function SplitViewPage() {
               <img
                 src={split.originalImageUrl}
                 alt={split.fileName}
-                className="w-full rounded-md border object-contain max-h-[640px] bg-muted/20"
+                className="w-full rounded-md border object-contain max-h-160 bg-muted/20"
               />
             ) : (
               <div className="rounded-md border p-6 text-sm text-muted-foreground">

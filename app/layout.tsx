@@ -1,16 +1,25 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Source_Sans_3 } from "next/font/google";
-import "./globals.css";
+import { Inter, Playfair_Display, JetBrains_Mono } from "next/font/google";
 
 import { AuthProvider } from "@/contexts/AuthContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
 
-const sourceSans = Source_Sans_3({
-  variable: "--font-source-sans",
+const fontSans = Inter({
   subsets: ["latin"],
+  variable: "--font-sans",
+});
+
+const fontSerif = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-serif",
+});
+
+const fontMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
 });
 
 // Create once per module so we don't recreate it on every render.
@@ -34,7 +43,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           content="Automatically split Bill of Lading by PO numbers"
         />
       </head>
-      <body className={`${sourceSans.variable} antialiased`}>
+      <body
+        className={`${fontSans.variable} ${fontSerif.variable} ${fontMono.variable} antialiased`}
+      >
         <Providers>{children}</Providers>
         <Toaster position="top-center" />
       </body>

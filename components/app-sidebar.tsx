@@ -37,6 +37,11 @@ const data = {
   ],
   navMain: [
     {
+      title: "Dashboard",
+      url: "/dashboard",
+      icon: GalleryVerticalEnd,
+    },
+    {
       title: "Settings",
       url: "/settings",
       icon: Settings2,
@@ -108,7 +113,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent>
         <NavMain items={data.navMain} />
 
-        <div className="px-2 py-2">
+        <div className="px-2 py-2 group-data-[collapsible=icon]:hidden">
           <div className="mb-2 px-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Recent Splits
           </div>
@@ -130,7 +135,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <div className="truncate font-medium">
                       {split.fileName ?? `Split ${split.id.slice(0, 6)}`}
                     </div>
-                    <div className="text-xs capitalize text-muted-foreground">
+                    <div className="flex items-center gap-1.5 text-xs capitalize text-muted-foreground">
+                      <span
+                        className="h-2 w-2 rounded-full bg-sky-500"
+                        aria-hidden="true"
+                      />
                       {split.status ?? "uploaded"}
                     </div>
                   </div>
