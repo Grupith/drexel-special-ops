@@ -1,4 +1,5 @@
-// Placeholder utility function for class names
-export function cn(...classes: string[]): string {
-  return classes.filter(Boolean).join(" ");
+type ClassValue = string | false | null | undefined;
+
+export function cn(...classes: ClassValue[]): string {
+  return classes.filter((value): value is string => typeof value === "string" && value.length > 0).join(" ");
 }
