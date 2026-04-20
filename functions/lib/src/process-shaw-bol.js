@@ -333,6 +333,7 @@ exports.processShawBol = functions.storage.onObjectFinalized({
             }
             tx.update(splitRef, {
                 status: "processing",
+                startedAt: admin.firestore.FieldValue.serverTimestamp(),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 errorMessage: admin.firestore.FieldValue.delete(),
             });
