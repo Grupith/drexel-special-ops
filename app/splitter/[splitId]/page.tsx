@@ -2,16 +2,17 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { Loader2 } from "lucide-react";
 import { useParams } from "next/navigation";
 import {
   collection,
   doc,
-  getDoc,
-  getDocs,
+  onSnapshot,
   orderBy,
   query,
   Timestamp,
 } from "firebase/firestore";
+import { getDownloadURL, getStorage, ref } from "firebase/storage";
 
 import { db } from "@/lib/firebase/db";
 
@@ -31,8 +32,11 @@ type SubSplitDoc = {
   poNumber?: string;
   order?: number;
   sourcePage?: number;
+  rowCount?: number;
+  imagePath?: string;
   generatedImagePath?: string;
   generatedImageUrl?: string;
+  previewImageUrl?: string;
   status?: string;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
@@ -51,12 +55,62 @@ function getStatusStyles(status: string) {
       return "bg-gray-100 text-gray-700 border-gray-200";
     case "processing":
       return "bg-yellow-100 text-yellow-800 border-yellow-200";
+    case "generated":
+      return "bg-green-100 text-green-700 border-green-200";
     case "completed":
       return "bg-green-100 text-green-700 border-green-200";
     case "failed":
       return "bg-red-100 text-red-700 border-red-200";
     default:
       return "bg-gray-100 text-gray-700 border-gray-200";
+  }
+}
+
+function getStatusLabel(status: string) {
+  switch (status) {
+    case "uploaded":
+      return "Uploaded";
+    case "processing":
+      return "Processing";
+    case "generated":
+      return "Generated";
+    case "completed":
+      return "Completed";
+    case "failed":
+      return "Failed";
+    default:
+      return status || "Unknown";
+  }
+}
+
+async function enrichSubSplitWithPreviewUrl(
+  subSplit: SubSplitDoc,
+): Promise<SubSplitDoc> {
+  const existingUrl = subSplit.generatedImageUrl ?? subSplit.previewImageUrl;
+  const storagePath = subSplit.generatedImagePath ?? subSplit.imagePath;
+
+  if (existingUrl || !storagePath) {
+    return {
+      ...subSplit,
+      previewImageUrl: existingUrl,
+    };
+  }
+
+  try {
+    const storage = getStorage();
+    const previewImageUrl = await getDownloadURL(ref(storage, storagePath));
+
+    return {
+      ...subSplit,
+      previewImageUrl,
+    };
+  } catch (error) {
+    console.error("Failed to resolve sub-split image URL:", error, storagePath);
+
+    return {
+      ...subSplit,
+      previewImageUrl: undefined,
+    };
   }
 }
 
@@ -69,48 +123,97 @@ export default function SplitViewPage() {
   const [notFound, setNotFound] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [subSplits, setSubSplits] = React.useState<SubSplitDoc[]>([]);
+  const [hasReceivedSplitSnapshot, setHasReceivedSplitSnapshot] =
+    React.useState(false);
+  const [hasReceivedSubSplitsSnapshot, setHasReceivedSubSplitsSnapshot] =
+    React.useState(false);
 
   React.useEffect(() => {
-    async function loadSplit() {
-      if (!splitId) return;
+    if (!splitId) return;
 
-      setLoading(true);
-      setError(null);
-      setNotFound(false);
+    setLoading(true);
+    setError(null);
+    setNotFound(false);
+    setSplit(null);
+    setSubSplits([]);
+    setHasReceivedSplitSnapshot(false);
+    setHasReceivedSubSplitsSnapshot(false);
 
-      try {
-        const splitRef = doc(db, "splits", splitId);
-        const splitSnap = await getDoc(splitRef);
+    const splitRef = doc(db, "splits", splitId);
+    const subSplitsRef = collection(db, "splits", splitId, "subSplits");
+    const subSplitsQuery = query(subSplitsRef, orderBy("order", "asc"));
+
+    const unsubscribeSplit = onSnapshot(
+      splitRef,
+      (splitSnap) => {
+        setHasReceivedSplitSnapshot(true);
 
         if (!splitSnap.exists()) {
           setNotFound(true);
           setSplit(null);
           setSubSplits([]);
+          setHasReceivedSubSplitsSnapshot(true);
+          setLoading(false);
           return;
         }
 
+        setNotFound(false);
         setSplit(splitSnap.data() as SplitDoc);
+      },
+      (err) => {
+        console.error("Failed to subscribe to split:", err);
+        setError("Failed to load split.");
+        setLoading(false);
+      },
+    );
 
-        const subSplitsRef = collection(db, "splits", splitId, "subSplits");
-        const subSplitsQuery = query(subSplitsRef, orderBy("order", "asc"));
-        const subSplitsSnap = await getDocs(subSplitsQuery);
+    const unsubscribeSubSplits = onSnapshot(
+      subSplitsQuery,
+      (subSplitsSnap) => {
+        setHasReceivedSubSplitsSnapshot(true);
 
         const subSplitsData = subSplitsSnap.docs.map(
           (subSplitDoc) => subSplitDoc.data() as SubSplitDoc,
         );
 
-        setSubSplits(subSplitsData);
-      } catch (err) {
-        console.error("Failed to load split:", err);
-        setError("Failed to load split.");
-        setSubSplits([]);
-      } finally {
+        void (async () => {
+          const enrichedSubSplits = await Promise.all(
+            subSplitsData.map(enrichSubSplitWithPreviewUrl),
+          );
+
+          setSubSplits(enrichedSubSplits);
+        })();
+      },
+      (err) => {
+        console.error("Failed to subscribe to sub-splits:", err);
+        setError("Failed to load split previews.");
         setLoading(false);
-      }
+      },
+    );
+
+    return () => {
+      unsubscribeSplit();
+      unsubscribeSubSplits();
+    };
+  }, [splitId]);
+
+  React.useEffect(() => {
+    if (!splitId) return;
+
+    if (notFound) {
+      setLoading(false);
+      return;
     }
 
-    loadSplit();
-  }, [splitId]);
+    if (hasReceivedSplitSnapshot && hasReceivedSubSplitsSnapshot) {
+      setLoading(false);
+    }
+  }, [
+    splitId,
+    hasReceivedSplitSnapshot,
+    hasReceivedSubSplitsSnapshot,
+    notFound,
+  ]);
 
   if (loading) {
     return (
@@ -169,11 +272,14 @@ export default function SplitViewPage() {
             <span>Vendor: {split.vendorId}</span>
             <span>File: {split.fileName}</span>
             <span
-              className={`inline-flex rounded-md border px-2 py-1 text-[11px] font-medium capitalize ${getStatusStyles(
+              className={`inline-flex items-center gap-2 rounded-md border px-2 py-1 text-[11px] font-medium ${getStatusStyles(
                 split.status,
               )}`}
             >
-              {split.status}
+              {split.status === "processing" ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : null}
+              <span className="capitalize">{getStatusLabel(split.status)}</span>
             </span>
           </div>
         </div>
@@ -245,8 +351,13 @@ export default function SplitViewPage() {
 
           {split.status === "processing" && subSplits.length === 0 ? (
             <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-              Processing split previews. Generated PO pages will appear here
-              once they are ready.
+              <div className="flex items-center gap-3">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>
+                  Processing split previews. Generated PO pages will appear here
+                  once they are ready.
+                </span>
+              </div>
             </div>
           ) : split.status === "failed" ? (
             <div className="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-700">
@@ -275,22 +386,38 @@ export default function SplitViewPage() {
                           : `Split ${index + 1}`}
                       </p>
                     </div>
-                    <span className="rounded-md border px-2 py-1 text-[11px] capitalize text-muted-foreground">
-                      {subSplit.status ?? "pending"}
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium ${getStatusStyles(
+                        subSplit.status ?? "generated",
+                      )}`}
+                    >
+                      {subSplit.status === "processing" ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : null}
+                      <span className="capitalize">
+                        {getStatusLabel(subSplit.status ?? "generated")}
+                      </span>
                     </span>
                   </div>
 
-                  {subSplit.generatedImageUrl ? (
+                  {subSplit.previewImageUrl ? (
                     <div className="space-y-3">
-                      <img
-                        src={subSplit.generatedImageUrl}
-                        alt={
-                          subSplit.poNumber
-                            ? `PO ${subSplit.poNumber} preview`
-                            : `Split ${index + 1} preview`
-                        }
-                        className="aspect-[8.5/11] w-full rounded-lg border bg-muted/20 object-contain"
-                      />
+                      <a
+                        href={subSplit.previewImageUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block"
+                      >
+                        <img
+                          src={subSplit.previewImageUrl}
+                          alt={
+                            subSplit.poNumber
+                              ? `PO ${subSplit.poNumber} preview`
+                              : `Split ${index + 1} preview`
+                          }
+                          className="aspect-[8.5/11] w-full rounded-lg border bg-muted/20 object-contain"
+                        />
+                      </a>
 
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span>
@@ -302,11 +429,23 @@ export default function SplitViewPage() {
                           <span>Order {subSplit.order}</span>
                         ) : null}
                       </div>
+
+                      <a
+                        href={subSplit.previewImageUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs underline"
+                      >
+                        Open full image
+                      </a>
                     </div>
                   ) : (
                     <div className="aspect-[8.5/11] rounded-lg border border-dashed bg-muted/30 p-3">
-                      <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
-                        Preview image not ready yet.
+                      <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
+                        {(subSplit.status ?? "") === "processing" ? (
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                        ) : null}
+                        <span>Preview image not ready yet.</span>
                       </div>
                     </div>
                   )}

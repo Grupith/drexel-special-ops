@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { getAuth } from "firebase/auth";
-import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 
 import { db } from "@/lib/firebase/db";
@@ -113,20 +113,27 @@ export function NewSplitModal({
       const storageFileName = extension ? `master.${extension}` : "master";
       const originalImagePath = `splits/${splitId}/original/${storageFileName}`;
       const storageRef = ref(storage, originalImagePath);
+      const splitRef = doc(db, "splits", splitId);
 
-      await uploadBytes(storageRef, file);
-      const originalImageUrl = await getDownloadURL(storageRef);
-
-      await setDoc(doc(db, "splits", splitId), {
+      await setDoc(splitRef, {
         vendorId,
         createdBy: currentUser.uid,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        status: "uploaded",
+        status: "uploading",
         originalImagePath,
-        originalImageUrl,
+        originalImageUrl: "",
         fileName: file.name,
         comment: comment.trim(),
+      });
+
+      await uploadBytes(storageRef, file);
+      const originalImageUrl = await getDownloadURL(storageRef);
+
+      await updateDoc(splitRef, {
+        originalImageUrl,
+        status: "uploaded",
+        updatedAt: serverTimestamp(),
       });
 
       setOpen(false);

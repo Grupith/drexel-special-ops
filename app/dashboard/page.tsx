@@ -1,5 +1,7 @@
 "use client";
 
+import * as React from "react";
+
 import { NewSplitModal } from "@/components/NewSplitModal";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +20,9 @@ import {
   Package,
   Sparkles,
 } from "lucide-react";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
+
+import { db } from "@/lib/firebase/db";
 
 function getFirstName(name?: string | null) {
   if (!name) return "User";
@@ -34,8 +39,36 @@ function getGreeting() {
 
 export default function DashboardPage() {
   const { user, userProfile } = useAuth();
+  const [liveTotalSplits, setLiveTotalSplits] = React.useState<number | null>(
+    null,
+  );
 
-  const totalSplits = userProfile?.stats?.totalSplits || 0;
+  React.useEffect(() => {
+    if (!user?.uid) {
+      setLiveTotalSplits(null);
+      return;
+    }
+
+    const splitsQuery = query(
+      collection(db, "splits"),
+      where("createdBy", "==", user.uid),
+    );
+
+    const unsubscribe = onSnapshot(
+      splitsQuery,
+      (snapshot) => {
+        setLiveTotalSplits(snapshot.size);
+      },
+      (error) => {
+        console.error("Failed to subscribe to total splits:", error);
+        setLiveTotalSplits(null);
+      },
+    );
+
+    return () => unsubscribe();
+  }, [user?.uid]);
+
+  const totalSplits = (liveTotalSplits ?? userProfile?.stats?.totalSplits) || 0;
   const completedSplits = userProfile?.stats?.completedSplits || 0;
   const pendingSplits = Math.max(totalSplits - completedSplits, 0);
 

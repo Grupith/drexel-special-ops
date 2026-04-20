@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "module": "Node16",
+    "target": "es2020",
+    "lib": ["es2020"],
+    "outDir": "lib",
+    "rootDir": ".",
+    "strict": false,
+    "esModuleInterop": true,
+    "moduleResolution": "node16",
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts"]
+}
