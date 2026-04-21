@@ -185,6 +185,81 @@ export default function SplitViewPage() {
   const params = useParams<{ splitId: string }>();
   const splitId = params?.splitId;
 
+  function handlePrintSingleImage(imageUrl: string, title: string) {
+    if (typeof window === "undefined") return;
+
+    const printWindow = window.open("", "_blank", "width=900,height=1200");
+
+    if (!printWindow) {
+      toast.error("Unable to open print window.");
+      return;
+    }
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${title}</title>
+          <style>
+            @page {
+              size: auto;
+              margin: 0.35in;
+            }
+
+            html, body {
+              margin: 0;
+              padding: 0;
+              background: white;
+            }
+
+            body {
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-family: Arial, sans-serif;
+            }
+
+            img {
+              max-width: 100%;
+              max-height: 100vh;
+              width: auto;
+              height: auto;
+              object-fit: contain;
+              display: block;
+            }
+          </style>
+        </head>
+        <body>
+          <img src="${imageUrl}" alt="${title}" />
+          <script>
+            const img = document.images[0];
+            Promise.resolve(
+              img && !img.complete
+                ? new Promise((resolve) => {
+                    img.onload = resolve;
+                    img.onerror = resolve;
+                  })
+                : undefined
+            ).then(() => {
+              window.focus();
+              setTimeout(() => {
+                window.print();
+              }, 150);
+            });
+
+            window.addEventListener("afterprint", () => {
+              setTimeout(() => {
+                window.close();
+              }, 150);
+            });
+          </script>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+  }
+
   function handlePrintAll() {
     if (typeof window === "undefined") return;
 
@@ -845,10 +920,10 @@ export default function SplitViewPage() {
         >
           <div className="flex w-full max-w-6xl flex-col items-center">
             <div
-              className="mb-4 flex w-full max-w-5xl items-center justify-between gap-3 rounded-2xl border border-white/10 bg-background/95 px-4 py-3 shadow-lg backdrop-blur"
+              className="mb-4 flex w-full max-w-5xl flex-col gap-3 rounded-2xl border border-white/10 bg-background/95 px-4 py-3 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-between"
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium md:text-base">
                   {previewModalTitle}
                 </p>
@@ -860,16 +935,30 @@ export default function SplitViewPage() {
                   </div>
                 ) : null}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap sm:justify-end">
                 <a
                   href={previewModalImageUrl}
                   target="_blank"
                   rel="noreferrer"
                   onClick={(event) => event.stopPropagation()}
-                  className="rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-primary/90 bg-primary text-primary-foreground"
+                  className="inline-flex min-h-10 items-center justify-center rounded-lg border bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
                 >
                   Open in new tab
                 </a>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handlePrintSingleImage(
+                      previewModalImageUrl,
+                      previewModalTitle || "Split image",
+                    );
+                  }}
+                  className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+                >
+                  <Printer className="h-4 w-4" />
+                  Print
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -877,7 +966,7 @@ export default function SplitViewPage() {
                     setPreviewModalTitle("");
                     setPreviewModalMeta([]);
                   }}
-                  className="rounded-lg cursor-pointer border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+                  className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-muted"
                 >
                   Close
                 </button>
