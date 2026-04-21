@@ -15,6 +15,7 @@ import logo from "@/public/drexel-logo.png";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
 
 export default function Home() {
   const { user, loading, signInWithGoogle } = useAuth();
@@ -39,9 +40,9 @@ export default function Home() {
     return null; // Will redirect
   }
   return (
-    <div className="flex items-center justify-center min-h-screen p-4 bg-background">
-      <Card className="w-full max-w-md shadow-lg border border-border bg-card">
-        <CardHeader className="space-y-4 text-center">
+    <div className="flex items-center justify-center min-h-screen px-4 py-10 bg-background">
+      <Card className="w-full max-w-md shadow-lg border border-border bg-card py-2">
+        <CardHeader className="space-y-3 text-center pb-4">
           <div className="flex justify-center">
             <Image src={logo} alt="Drexel Logo" width={260} height={260} />
           </div>
@@ -54,7 +55,24 @@ export default function Home() {
             </CardDescription>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5 pt-2">
+          <div
+            onClick={() => router.push("/about")}
+            className="flex items-center justify-between w-full bg-muted/30 rounded-md border border-border px-4 py-3 cursor-pointer hover:bg-muted/50 transition"
+          >
+            <div className="flex flex-col text-left">
+              <span className="text-sm font-medium text-foreground">
+                New here?
+              </span>
+              <span className="text-xs text-muted-foreground">
+                See how the app works before signing in
+              </span>
+            </div>
+            <span className="text-sm font-medium underline">Learn more →</span>
+          </div>
+          <div className="text-center text-xs text-muted-foreground pb-1">
+            Sign in with your Drexel Google account to access the app
+          </div>
           <Button
             className="w-full h-11 text-base font-medium cursor-pointer"
             size="lg"
@@ -77,8 +95,7 @@ export default function Home() {
             </svg>
             Continue with Google
           </Button>
-
-          <div className="relative">
+          <div className="relative py-1">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t border-border" />
             </div>
@@ -89,8 +106,12 @@ export default function Home() {
             </div>
           </div>
 
-          <p className="text-center text-sm text-muted-foreground">
-            By continuing, you agree to our Terms of Service and Privacy Policy
+          <p className="text-center text-xs text-muted-foreground pt-2">
+            By continuing, you agree to our{" "}
+            <Link href="/terms" className="underline hover:text-foreground">
+              Terms of Service
+            </Link>{" "}
+            and Privacy Policy
           </p>
         </CardContent>
       </Card>

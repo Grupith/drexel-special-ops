@@ -404,7 +404,7 @@ export default function DashboardPage() {
                 </h1>
                 {memberSinceLabel ? (
                   <p className="pl-1 text-xs text-muted-foreground sm:text-sm">
-                    Member since {memberSinceLabel}
+                    Make it a great day!
                   </p>
                 ) : null}
               </div>
@@ -428,59 +428,64 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div ref={poSearchContainerRef} className="relative">
-          <Search className="pointer-events-none absolute left-3 top-5.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            ref={poSearchInputRef}
-            value={poSearch}
-            onChange={(event) => {
-              setPoSearch(event.target.value.toUpperCase());
-              setActivePoResultIndex(0);
-              setIsPoSearchOpen(true);
-            }}
-            onFocus={() => {
-              if (normalizedPoSearch) {
+        <div
+          ref={poSearchContainerRef}
+          className="relative rounded-xl border border-border/70 bg-card/80 p-3 shadow-sm"
+        >
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              ref={poSearchInputRef}
+              value={poSearch}
+              onChange={(event) => {
+                setPoSearch(event.target.value.toUpperCase());
+                setActivePoResultIndex(0);
                 setIsPoSearchOpen(true);
-              }
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "ArrowDown") {
-                event.preventDefault();
-                if (!isPoSearchOpen && poResults.length > 0) {
+              }}
+              onFocus={() => {
+                if (normalizedPoSearch) {
                   setIsPoSearchOpen(true);
-                  return;
                 }
-                if (poResults.length === 0) return;
-                setActivePoResultIndex((currentIndex) =>
-                  currentIndex >= poResults.length - 1 ? 0 : currentIndex + 1,
-                );
-              }
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowDown") {
+                  event.preventDefault();
+                  if (!isPoSearchOpen && poResults.length > 0) {
+                    setIsPoSearchOpen(true);
+                    return;
+                  }
+                  if (poResults.length === 0) return;
+                  setActivePoResultIndex((currentIndex) =>
+                    currentIndex >= poResults.length - 1 ? 0 : currentIndex + 1,
+                  );
+                }
 
-              if (event.key === "ArrowUp") {
-                event.preventDefault();
-                if (poResults.length === 0) return;
-                setActivePoResultIndex((currentIndex) =>
-                  currentIndex <= 0 ? poResults.length - 1 : currentIndex - 1,
-                );
-              }
+                if (event.key === "ArrowUp") {
+                  event.preventDefault();
+                  if (poResults.length === 0) return;
+                  setActivePoResultIndex((currentIndex) =>
+                    currentIndex <= 0 ? poResults.length - 1 : currentIndex - 1,
+                  );
+                }
 
-              if (event.key === "Enter") {
-                event.preventDefault();
-                handlePoSearchSubmit(activePoResultIndex);
-              }
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  handlePoSearchSubmit(activePoResultIndex);
+                }
 
-              if (event.key === "Escape") {
-                setIsPoSearchOpen(false);
-                poSearchInputRef.current?.blur();
-              }
-            }}
-            placeholder="Search PO number (ex. F35236 or F35...)"
-            className="h-11 w-full rounded-md border border-input bg-background pl-10 pr-4 text-sm text-foreground shadow-xs outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
-          />
+                if (event.key === "Escape") {
+                  setIsPoSearchOpen(false);
+                  poSearchInputRef.current?.blur();
+                }
+              }}
+              placeholder="Search PO number (ex. F35236 or F35...)"
+              className="h-14 w-full rounded-lg border border-border/80 bg-background pl-10 pr-4 text-sm text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
+            />
+          </div>
 
           {normalizedPoSearch && isPoSearchOpen ? (
-            <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-md border border-border bg-popover shadow-md">
+            <div className="absolute left-3 right-3 top-[calc(100%-0.1rem)] z-20 overflow-hidden rounded-lg border border-border bg-popover shadow-md">
               {isSearchingPo ? (
                 <div className="px-4 py-3 text-sm text-muted-foreground">
                   Searching PO numbers...
@@ -532,7 +537,7 @@ export default function DashboardPage() {
             </div>
           ) : null}
 
-          <p className="mt-2 pl-1 text-xs text-muted-foreground">
+          <p className="mt-3 px-1 text-xs text-muted-foreground">
             Search prefers fast prefix lookup, with a fallback scan across your
             recent splits for older data.
           </p>

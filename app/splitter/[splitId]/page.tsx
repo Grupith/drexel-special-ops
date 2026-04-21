@@ -6,6 +6,8 @@ import {
   ArrowLeft,
   Check,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Loader2,
   Printer,
   XCircle,
@@ -373,6 +375,9 @@ export default function SplitViewPage() {
     printWindow.document.close();
   }
 
+  const [previewModalIndex, setPreviewModalIndex] = React.useState<
+    number | null
+  >(null);
   const [previewModalImageUrl, setPreviewModalImageUrl] = React.useState<
     string | null
   >(null);
@@ -383,10 +388,19 @@ export default function SplitViewPage() {
     imageUrl: string,
     title: string,
     meta: string[] = [],
+    index?: number,
   ) {
     setPreviewModalImageUrl(imageUrl);
     setPreviewModalTitle(title);
     setPreviewModalMeta(meta);
+    setPreviewModalIndex(typeof index === "number" ? index : null);
+  }
+
+  function closePreviewModal() {
+    setPreviewModalIndex(null);
+    setPreviewModalImageUrl(null);
+    setPreviewModalTitle("");
+    setPreviewModalMeta([]);
   }
 
   const [split, setSplit] = React.useState<SplitDoc | null>(null);
@@ -400,6 +414,17 @@ export default function SplitViewPage() {
     React.useState(false);
   const [isResolvingPreviewUrls, setIsResolvingPreviewUrls] =
     React.useState(false);
+
+  const previewableSubSplits = React.useMemo(
+    () => subSplits.filter((subSplit) => subSplit.previewImageUrl),
+    [subSplits],
+  );
+  const canGoToPreviousPreview =
+    previewModalIndex !== null && previewModalIndex > 0;
+  const canGoToNextPreview =
+    previewModalIndex !== null &&
+    previewModalIndex < previewableSubSplits.length - 1;
+
   const previousSplitStatusRef = React.useRef<string | null>(null);
   const highlightedCardRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -517,6 +542,36 @@ export default function SplitViewPage() {
   }, [splitId, split?.status]);
 
   React.useEffect(() => {
+    if (previewModalIndex === null) return;
+
+    const currentPreview = previewableSubSplits[previewModalIndex];
+
+    if (!currentPreview?.previewImageUrl) {
+      closePreviewModal();
+      return;
+    }
+
+    setPreviewModalImageUrl(currentPreview.previewImageUrl);
+    setPreviewModalTitle(
+      currentPreview.poNumber
+        ? `PO: ${currentPreview.poNumber}`
+        : `Split ${previewModalIndex + 1}`,
+    );
+    setPreviewModalMeta([
+      `Status: ${getStatusLabel(currentPreview.status ?? "generated")}`,
+      typeof currentPreview.order === "number"
+        ? `Order: ${currentPreview.order}`
+        : "Order pending",
+      typeof currentPreview.rowCount === "number"
+        ? `Rows: ${currentPreview.rowCount}`
+        : "Rows pending",
+      typeof currentPreview.sourcePage === "number"
+        ? `Source page: ${currentPreview.sourcePage}`
+        : "Source page pending",
+    ]);
+  }, [previewModalIndex, previewableSubSplits]);
+
+  React.useEffect(() => {
     if (!highlightedSubSplitId || subSplits.length === 0) return;
 
     const targetCard = highlightedCardRef.current;
@@ -537,15 +592,32 @@ export default function SplitViewPage() {
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        setPreviewModalImageUrl(null);
-        setPreviewModalTitle("");
-        setPreviewModalMeta([]);
+        closePreviewModal();
+      }
+
+      if (event.key === "ArrowLeft" && canGoToPreviousPreview) {
+        setPreviewModalIndex((current) =>
+          current === null ? current : Math.max(current - 1, 0),
+        );
+      }
+
+      if (event.key === "ArrowRight" && canGoToNextPreview) {
+        setPreviewModalIndex((current) =>
+          current === null
+            ? current
+            : Math.min(current + 1, previewableSubSplits.length - 1),
+        );
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [previewModalImageUrl]);
+  }, [
+    previewModalImageUrl,
+    canGoToNextPreview,
+    canGoToPreviousPreview,
+    previewableSubSplits.length,
+  ]);
 
   if (loading) {
     return (
@@ -611,9 +683,23 @@ export default function SplitViewPage() {
       <div className="mb-6 flex flex-col gap-4 rounded-2xl border bg-muted/40 p-4 md:flex-row md:items-center md:justify-between md:p-5">
         <div className="min-w-0 space-y-3">
           <div className="space-y-1">
-            <p className="truncate text-3xl font-semibold tracking-tight md:text-4xl">
-              {split.fileName}
-            </p>
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="relative flex h-3 w-3 shrink-0">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-500 opacity-75" />
+                <span className="relative inline-flex h-3 w-3 rounded-full bg-sky-500" />
+              </span>
+              <a
+                href={split.originalImageUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="block min-w-0 cursor-pointer"
+                title="Open original document"
+              >
+                <p className="truncate text-3xl font-semibold tracking-tight transition hover:opacity-80 md:text-4xl">
+                  {split.fileName}
+                </p>
+              </a>
+            </div>
             <div className="space-y-1 text-sm text-muted-foreground">
               <p>
                 Created at:{" "}
@@ -691,7 +777,12 @@ export default function SplitViewPage() {
               <button
                 type="button"
                 onClick={() =>
-                  openPreviewModal(split.originalImageUrl, split.fileName, [])
+                  openPreviewModal(
+                    split.originalImageUrl,
+                    split.fileName,
+                    [],
+                    undefined,
+                  )
                 }
                 className="group block w-full cursor-pointer"
               >
@@ -911,6 +1002,10 @@ export default function SplitViewPage() {
                                     ? `Source page: ${subSplit.sourcePage}`
                                     : "Source page pending",
                                 ],
+                                previewableSubSplits.findIndex(
+                                  (previewableSubSplit) =>
+                                    previewableSubSplit.id === subSplit.id,
+                                ),
                               );
                             }}
                             className="block w-full cursor-pointer"
@@ -951,11 +1046,7 @@ export default function SplitViewPage() {
       {previewModalImageUrl ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 md:p-6"
-          onClick={() => {
-            setPreviewModalImageUrl(null);
-            setPreviewModalTitle("");
-            setPreviewModalMeta([]);
-          }}
+          onClick={closePreviewModal}
         >
           <div className="flex w-full max-w-6xl flex-col items-center">
             <div
@@ -1000,11 +1091,7 @@ export default function SplitViewPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setPreviewModalImageUrl(null);
-                    setPreviewModalTitle("");
-                    setPreviewModalMeta([]);
-                  }}
+                  onClick={closePreviewModal}
                   className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-muted"
                 >
                   Close
@@ -1012,13 +1099,49 @@ export default function SplitViewPage() {
               </div>
             </div>
 
-            <div className="flex w-full max-w-5xl items-center justify-center overflow-hidden rounded-[28px] bg-transparent p-2 md:p-4">
-              <img
-                src={previewModalImageUrl}
-                alt={previewModalTitle}
-                onClick={(event) => event.stopPropagation()}
-                className="block h-auto max-h-[calc(100vh-8.5rem)] w-auto max-w-full rounded-[20px] shadow-2xl md:max-h-[calc(100vh-10rem)]"
-              />
+            <div className="flex w-full max-w-6xl items-center justify-center gap-2 md:gap-4">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (!canGoToPreviousPreview) return;
+                  setPreviewModalIndex((current) =>
+                    current === null ? current : Math.max(current - 1, 0),
+                  );
+                }}
+                disabled={!canGoToPreviousPreview}
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-background/95 text-foreground shadow-lg backdrop-blur transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Previous split preview"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+
+              <div className="flex min-w-0 flex-1 items-center justify-center overflow-hidden rounded-[28px] bg-transparent p-2 md:p-4">
+                <img
+                  src={previewModalImageUrl}
+                  alt={previewModalTitle}
+                  onClick={(event) => event.stopPropagation()}
+                  className="block h-auto max-h-[calc(100vh-8.5rem)] w-auto max-w-full rounded-[20px] shadow-2xl md:max-h-[calc(100vh-10rem)]"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (!canGoToNextPreview) return;
+                  setPreviewModalIndex((current) =>
+                    current === null
+                      ? current
+                      : Math.min(current + 1, previewableSubSplits.length - 1),
+                  );
+                }}
+                disabled={!canGoToNextPreview}
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-background/95 text-foreground shadow-lg backdrop-blur transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Next split preview"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
             </div>
           </div>
         </div>

@@ -286,7 +286,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                 </div>
                                 <div className="flex items-center gap-1.5 text-xs capitalize text-muted-foreground">
                                   <span
-                                    className="h-2 w-2 rounded-full bg-sky-500"
+                                    className={`h-2 w-2 rounded-full ${
+                                      split.status === "failed"
+                                        ? "bg-destructive"
+                                        : "bg-sky-500"
+                                    }`}
                                     aria-hidden="true"
                                   />
                                   {split.status ?? "uploaded"}
