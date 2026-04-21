@@ -2,18 +2,22 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
+  addDoc,
   collection,
   limit,
   onSnapshot,
   orderBy,
   query,
+  serverTimestamp,
   where,
 } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import {
   FolderOpen,
   GalleryVerticalEnd,
+  MessageSquareWarning,
   Settings2,
   Trash2,
 } from "lucide-react";
@@ -29,6 +33,15 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -39,7 +52,18 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 import { db } from "@/lib/firebase/db";
 import { app } from "@/lib/firebase/config";
@@ -75,6 +99,7 @@ type RecentSplit = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user } = useAuth();
+  const pathname = usePathname();
   const functions = getFunctions(app);
   const deleteSplitCallable = httpsCallable(functions, "deleteSplit");
 
@@ -87,6 +112,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [deletingSplitId, setDeletingSplitId] = React.useState<string | null>(
     null,
   );
+
+  const [feedbackOpen, setFeedbackOpen] = React.useState(false);
+  const [feedbackType, setFeedbackType] = React.useState<
+    "bug" | "suggestion" | "general"
+  >("bug");
+  const [feedbackMessage, setFeedbackMessage] = React.useState("");
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = React.useState(false);
 
   if (!user) {
     return null;
@@ -139,6 +171,40 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       setDeletingSplitId(null);
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleSubmitFeedback = async () => {
+    const trimmedMessage = feedbackMessage.trim();
+
+    if (!trimmedMessage) {
+      toast.error("Please enter your feedback before sending.");
+      return;
+    }
+
+    try {
+      setIsSubmittingFeedback(true);
+
+      await addDoc(collection(db, "feedback"), {
+        type: feedbackType,
+        message: trimmedMessage,
+        route: pathname,
+        createdBy: user.uid,
+        userEmail: user.email ?? null,
+        userName: user.displayName ?? null,
+        status: "new",
+        createdAt: serverTimestamp(),
+      });
+
+      setFeedbackMessage("");
+      setFeedbackType("bug");
+      setFeedbackOpen(false);
+      toast.success("Feedback sent.");
+    } catch (error) {
+      console.error("Failed to send feedback:", error);
+      toast.error("Failed to send feedback.");
+    } finally {
+      setIsSubmittingFeedback(false);
     }
   };
 
@@ -253,6 +319,103 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </div>
         </SidebarContent>
         <SidebarFooter>
+          <div className="px-2 pb-2 group-data-[collapsible=icon]:hidden">
+            <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-9 w-full rounded-xl cursor-pointer justify-start gap-2 px-2 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  <MessageSquareWarning className="h-4 w-4 shrink-0" />
+                  <span>Give Feedback</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="p-4 sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Let us know!</DialogTitle>
+                  <DialogDescription>
+                    Report a problem, share an idea, or leave general feedback.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-1">
+                  <div className="space-y-2">
+                    <Label htmlFor="feedback-type">Type</Label>
+                    <Select
+                      value={feedbackType}
+                      onValueChange={(value) =>
+                        setFeedbackType(
+                          value as "bug" | "suggestion" | "general",
+                        )
+                      }
+                      disabled={isSubmittingFeedback}
+                    >
+                      <SelectTrigger
+                        id="feedback-type"
+                        className="cursor-pointer"
+                      >
+                        <SelectValue placeholder="Select feedback type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="bug">Bug report</SelectItem>
+                        <SelectItem value="suggestion">
+                          Idea or suggestion
+                        </SelectItem>
+                        <SelectItem value="general">
+                          General feedback
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="feedback-route">Page</Label>
+                    <Input
+                      id="feedback-route"
+                      value={pathname}
+                      disabled
+                      readOnly
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="feedback-message">Message</Label>
+                    <Textarea
+                      id="feedback-message"
+                      placeholder="What happened, or what would you like to see improved?"
+                      value={feedbackMessage}
+                      onChange={(event) =>
+                        setFeedbackMessage(event.target.value)
+                      }
+                      disabled={isSubmittingFeedback}
+                      className="min-h-28"
+                    />
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="cursor-pointer"
+                    onClick={() => setFeedbackOpen(false)}
+                    disabled={isSubmittingFeedback}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    className="cursor-pointer"
+                    onClick={handleSubmitFeedback}
+                    disabled={isSubmittingFeedback}
+                  >
+                    {isSubmittingFeedback ? "Sending..." : "Send feedback"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
           <NavUser user={navUser} />
         </SidebarFooter>
         <SidebarRail />
