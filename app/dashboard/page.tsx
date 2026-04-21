@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { NewSplitModal } from "@/components/NewSplitModal";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,8 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import {
   collection,
+  collectionGroup,
+  getDocs,
   limit,
   onSnapshot,
   orderBy,
@@ -23,7 +26,19 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase/db";
-import { ArrowRight, FilePlus, Package } from "lucide-react";
+import { ArrowRight, FilePlus, Package, Search } from "lucide-react";
+
+type PoSearchResult = {
+  id: string;
+  splitId: string;
+  poNumber: string;
+  poNumberNormalized: string;
+  order: number | null;
+  rowCount: number | null;
+  status: string | null;
+  createdAtLabel: string | null;
+  createdAtMs: number | null;
+};
 
 function getFirstName(name?: string | null) {
   if (!name) return "User";
@@ -40,6 +55,7 @@ function getGreeting() {
 
 export default function DashboardPage() {
   const { user, userProfile } = useAuth();
+  const router = useRouter();
   const [liveTotalSplits, setLiveTotalSplits] = React.useState<number | null>(
     null,
   );
@@ -49,6 +65,11 @@ export default function DashboardPage() {
     vendorId?: string | null;
     status?: string | null;
   } | null>(null);
+  const [poSearch, setPoSearch] = React.useState("");
+  const [poResults, setPoResults] = React.useState<PoSearchResult[]>([]);
+  const [isSearchingPo, setIsSearchingPo] = React.useState(false);
+  const [isPoSearchOpen, setIsPoSearchOpen] = React.useState(false);
+  const [activePoResultIndex, setActivePoResultIndex] = React.useState(0);
 
   React.useEffect(() => {
     if (!user?.uid) {
@@ -120,6 +141,229 @@ export default function DashboardPage() {
     return () => unsubscribe();
   }, [user?.uid]);
 
+  const poSearchInputRef = React.useRef<HTMLInputElement | null>(null);
+  const poSearchContainerRef = React.useRef<HTMLDivElement | null>(null);
+
+  const normalizedPoSearch = poSearch.trim().toUpperCase();
+  const debouncedPoSearch = React.useDeferredValue(normalizedPoSearch);
+
+  const formatPoSearchDate = React.useCallback((value?: Date | null) => {
+    if (!value) return null;
+
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(value);
+  }, []);
+
+  const mapSubSplitResult = React.useCallback(
+    (
+      splitId: string,
+      doc: import("firebase/firestore").QueryDocumentSnapshot,
+      fallbackPoNumber: string,
+    ) => {
+      const data = doc.data() as {
+        poNumber?: string | null;
+        poNumberNormalized?: string | null;
+        order?: number | null;
+        rowCount?: number | null;
+        status?: string | null;
+        createdAt?: { toDate?: () => Date } | null;
+      };
+
+      const createdAtDate = data.createdAt?.toDate?.() ?? null;
+
+      return {
+        id: doc.id,
+        splitId,
+        poNumber: data.poNumber ?? fallbackPoNumber,
+        poNumberNormalized:
+          data.poNumberNormalized ??
+          data.poNumber?.trim().toUpperCase() ??
+          fallbackPoNumber,
+        order: typeof data.order === "number" ? data.order : null,
+        rowCount: typeof data.rowCount === "number" ? data.rowCount : null,
+        status: data.status ?? null,
+        createdAtLabel: formatPoSearchDate(createdAtDate),
+        createdAtMs: createdAtDate?.getTime() ?? null,
+      } satisfies PoSearchResult;
+    },
+    [formatPoSearchDate],
+  );
+
+  React.useEffect(() => {
+    const userId = user?.uid;
+
+    if (!userId || !debouncedPoSearch) {
+      setPoResults([]);
+      setIsSearchingPo(false);
+      setActivePoResultIndex(0);
+      return;
+    }
+
+    let isCancelled = false;
+
+    async function runPoSearch() {
+      setIsSearchingPo(true);
+
+      try {
+        const prefixResults = await (async () => {
+          try {
+            const prefixQuery = query(
+              collectionGroup(db, "subSplits"),
+              where("splitCreatedBy", "==", userId),
+              where("poNumberNormalized", ">=", debouncedPoSearch),
+              where("poNumberNormalized", "<=", `${debouncedPoSearch}\uf8ff`),
+              orderBy("poNumberNormalized"),
+              orderBy("createdAt", "desc"),
+              limit(8),
+            );
+
+            const prefixSnapshot = await getDocs(prefixQuery);
+
+            return prefixSnapshot.docs.map((doc) => {
+              const splitId = doc.ref.parent.parent?.id;
+              if (!splitId) return null;
+              return mapSubSplitResult(splitId, doc, debouncedPoSearch);
+            });
+          } catch (error) {
+            console.warn(
+              "Prefix PO search unavailable, using recent-splits fallback:",
+              error,
+            );
+            return [];
+          }
+        })();
+
+        const usablePrefixResults = prefixResults.filter(
+          (result): result is PoSearchResult => Boolean(result),
+        );
+
+        if (usablePrefixResults.length > 0) {
+          const dedupedPrefixResults = Array.from(
+            new Map(
+              usablePrefixResults.map((result) => [
+                `${result.splitId}:${result.id}`,
+                result,
+              ]),
+            ).values(),
+          )
+            .sort((a, b) => {
+              const poCompare = a.poNumberNormalized.localeCompare(
+                b.poNumberNormalized,
+              );
+              if (poCompare !== 0) return poCompare;
+              return (b.createdAtMs ?? 0) - (a.createdAtMs ?? 0);
+            })
+            .slice(0, 6);
+
+          if (!isCancelled) {
+            setPoResults(dedupedPrefixResults);
+            setActivePoResultIndex(0);
+            setIsSearchingPo(false);
+          }
+          return;
+        }
+
+        const ownedSplitsQuery = query(
+          collection(db, "splits"),
+          where("createdBy", "==", userId),
+          orderBy("createdAt", "desc"),
+          limit(25),
+        );
+
+        const ownedSplitsSnapshot = await getDocs(ownedSplitsQuery);
+
+        if (ownedSplitsSnapshot.empty) {
+          if (!isCancelled) {
+            setPoResults([]);
+            setActivePoResultIndex(0);
+            setIsSearchingPo(false);
+          }
+          return;
+        }
+
+        const fallbackResults = await Promise.all(
+          ownedSplitsSnapshot.docs.map(async (splitDoc) => {
+            const subSplitsQuery = query(
+              collection(db, "splits", splitDoc.id, "subSplits"),
+              orderBy("createdAt", "desc"),
+              limit(20),
+            );
+
+            const subSnapshot = await getDocs(subSplitsQuery);
+
+            return subSnapshot.docs
+              .map((doc) =>
+                mapSubSplitResult(splitDoc.id, doc, debouncedPoSearch),
+              )
+              .filter((result) =>
+                result.poNumberNormalized.startsWith(debouncedPoSearch),
+              );
+          }),
+        );
+
+        const flattenedResults = Array.from(
+          new Map(
+            fallbackResults
+              .flat()
+              .map((result) => [`${result.splitId}:${result.id}`, result]),
+          ).values(),
+        )
+          .sort((a, b) => {
+            const prefixCompare = a.poNumberNormalized.localeCompare(
+              b.poNumberNormalized,
+            );
+            if (prefixCompare !== 0) return prefixCompare;
+            return (b.createdAtMs ?? 0) - (a.createdAtMs ?? 0);
+          })
+          .slice(0, 6);
+
+        if (!isCancelled) {
+          setPoResults(flattenedResults);
+          setActivePoResultIndex(0);
+          setIsSearchingPo(false);
+        }
+      } catch (error) {
+        console.error("Failed to search PO subSplits:", error);
+        if (!isCancelled) {
+          setPoResults([]);
+          setActivePoResultIndex(0);
+          setIsSearchingPo(false);
+        }
+      }
+    }
+
+    void runPoSearch();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [debouncedPoSearch, mapSubSplitResult, user?.uid]);
+
+  React.useEffect(() => {
+    if (poResults.length === 0) {
+      setActivePoResultIndex(0);
+      return;
+    }
+
+    setActivePoResultIndex((currentIndex) =>
+      Math.min(currentIndex, poResults.length - 1),
+    );
+  }, [poResults]);
+
+  React.useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (!poSearchContainerRef.current) return;
+      if (poSearchContainerRef.current.contains(event.target as Node)) return;
+      setIsPoSearchOpen(false);
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
+
   const totalSplits = (liveTotalSplits ?? userProfile?.stats?.totalSplits) || 0;
 
   const memberSinceLabel = userProfile?.createdAt
@@ -128,6 +372,16 @@ export default function DashboardPage() {
         year: "numeric",
       }).format(userProfile.createdAt)
     : null;
+
+  function handlePoSearchSubmit(index = activePoResultIndex) {
+    const result = poResults[index] ?? poResults[0];
+    if (!result) return;
+
+    setIsPoSearchOpen(false);
+    router.push(
+      `/splitter/${result.splitId}?highlight=${encodeURIComponent(result.id)}`,
+    );
+  }
 
   return (
     <div className="px-4 py-6 sm:px-6 lg:px-8">
@@ -172,6 +426,116 @@ export default function DashboardPage() {
               }
             />
           </div>
+        </div>
+
+        <div ref={poSearchContainerRef} className="relative">
+          <Search className="pointer-events-none absolute left-3 top-5.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            ref={poSearchInputRef}
+            value={poSearch}
+            onChange={(event) => {
+              setPoSearch(event.target.value.toUpperCase());
+              setActivePoResultIndex(0);
+              setIsPoSearchOpen(true);
+            }}
+            onFocus={() => {
+              if (normalizedPoSearch) {
+                setIsPoSearchOpen(true);
+              }
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowDown") {
+                event.preventDefault();
+                if (!isPoSearchOpen && poResults.length > 0) {
+                  setIsPoSearchOpen(true);
+                  return;
+                }
+                if (poResults.length === 0) return;
+                setActivePoResultIndex((currentIndex) =>
+                  currentIndex >= poResults.length - 1 ? 0 : currentIndex + 1,
+                );
+              }
+
+              if (event.key === "ArrowUp") {
+                event.preventDefault();
+                if (poResults.length === 0) return;
+                setActivePoResultIndex((currentIndex) =>
+                  currentIndex <= 0 ? poResults.length - 1 : currentIndex - 1,
+                );
+              }
+
+              if (event.key === "Enter") {
+                event.preventDefault();
+                handlePoSearchSubmit(activePoResultIndex);
+              }
+
+              if (event.key === "Escape") {
+                setIsPoSearchOpen(false);
+                poSearchInputRef.current?.blur();
+              }
+            }}
+            placeholder="Search PO number (ex. F35236 or F35...)"
+            className="h-11 w-full rounded-md border border-input bg-background pl-10 pr-4 text-sm text-foreground shadow-xs outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
+          />
+
+          {normalizedPoSearch && isPoSearchOpen ? (
+            <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 overflow-hidden rounded-md border border-border bg-popover shadow-md">
+              {isSearchingPo ? (
+                <div className="px-4 py-3 text-sm text-muted-foreground">
+                  Searching PO numbers...
+                </div>
+              ) : poResults.length > 0 ? (
+                <div className="py-1">
+                  {poResults.map((result, index) => (
+                    <button
+                      key={result.id}
+                      type="button"
+                      onMouseEnter={() => setActivePoResultIndex(index)}
+                      onClick={() => {
+                        setActivePoResultIndex(index);
+                        handlePoSearchSubmit(index);
+                      }}
+                      className={`flex w-full cursor-pointer items-start justify-between gap-4 px-4 py-3 text-left transition-colors ${
+                        index === activePoResultIndex
+                          ? "bg-accent/60"
+                          : "hover:bg-accent/50"
+                      }`}
+                    >
+                      <div className="min-w-0 space-y-1">
+                        <p className="truncate text-sm font-semibold text-foreground">
+                          {result.poNumber}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Order {result.order ?? "—"} • {result.rowCount ?? "—"}{" "}
+                          rows
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                          {result.status ?? "unknown"}
+                        </p>
+                        {result.createdAtLabel ? (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {result.createdAtLabel}
+                          </p>
+                        ) : null}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-4 py-3 text-sm text-muted-foreground">
+                  No matching PO found. Try a broader prefix like F35.
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          <p className="mt-2 pl-1 text-xs text-muted-foreground">
+            Search prefers fast prefix lookup, with a fallback scan across your
+            recent splits for older data.
+          </p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">

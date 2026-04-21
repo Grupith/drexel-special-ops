@@ -11,7 +11,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   collection,
   doc,
@@ -39,6 +39,7 @@ type SplitDoc = {
 };
 
 type SubSplitDoc = {
+  id: string;
   poNumber?: string;
   order?: number;
   sourcePage?: number;
@@ -184,6 +185,8 @@ async function enrichSubSplitWithPreviewUrl(
 export default function SplitViewPage() {
   const params = useParams<{ splitId: string }>();
   const splitId = params?.splitId;
+  const searchParams = useSearchParams();
+  const highlightedSubSplitId = searchParams.get("highlight");
 
   function handlePrintSingleImage(imageUrl: string, title: string) {
     if (typeof window === "undefined") return;
@@ -398,6 +401,7 @@ export default function SplitViewPage() {
   const [isResolvingPreviewUrls, setIsResolvingPreviewUrls] =
     React.useState(false);
   const previousSplitStatusRef = React.useRef<string | null>(null);
+  const highlightedCardRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
     if (!splitId) return;
@@ -444,9 +448,10 @@ export default function SplitViewPage() {
       (subSplitsSnap) => {
         setHasReceivedSubSplitsSnapshot(true);
 
-        const subSplitsData = subSplitsSnap.docs.map(
-          (subSplitDoc) => subSplitDoc.data() as SubSplitDoc,
-        );
+        const subSplitsData = subSplitsSnap.docs.map((subSplitDoc) => ({
+          id: subSplitDoc.id,
+          ...(subSplitDoc.data() as Omit<SubSplitDoc, "id">),
+        }));
 
         setIsResolvingPreviewUrls(true);
 
@@ -510,6 +515,22 @@ export default function SplitViewPage() {
 
     previousSplitStatusRef.current = currentStatus;
   }, [splitId, split?.status]);
+
+  React.useEffect(() => {
+    if (!highlightedSubSplitId || subSplits.length === 0) return;
+
+    const targetCard = highlightedCardRef.current;
+    if (!targetCard) return;
+
+    const timeoutId = window.setTimeout(() => {
+      targetCard.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 150);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [highlightedSubSplitId, subSplits]);
 
   React.useEffect(() => {
     if (!previewModalImageUrl) return;
@@ -802,108 +823,126 @@ export default function SplitViewPage() {
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {subSplits.map((subSplit, index) => (
-                  <button
-                    key={`${subSplit.poNumber ?? "subsplit"}-${index}`}
-                    type="button"
-                    onClick={() => {
-                      if (!subSplit.previewImageUrl) return;
+                {subSplits.map((subSplit, index) => {
+                  const isHighlighted = highlightedSubSplitId === subSplit.id;
 
-                      openPreviewModal(
-                        subSplit.previewImageUrl,
-                        subSplit.poNumber
-                          ? `PO: ${subSplit.poNumber}`
-                          : `Split ${index + 1}`,
-                        [
-                          `Status: ${getStatusLabel(subSplit.status ?? "generated")}`,
-                          typeof subSplit.order === "number"
-                            ? `Order: ${subSplit.order}`
-                            : "Order pending",
-                          typeof subSplit.rowCount === "number"
-                            ? `Rows: ${subSplit.rowCount}`
-                            : "Rows pending",
-                          typeof subSplit.sourcePage === "number"
-                            ? `Source page: ${subSplit.sourcePage}`
-                            : "Source page pending",
-                        ],
-                      );
-                    }}
-                    className={`group overflow-hidden rounded-3xl border bg-card text-left shadow-sm transition duration-200 ${subSplit.previewImageUrl ? "cursor-pointer hover:scale-[1.02] hover:shadow-md" : "cursor-default"}`}
-                  >
-                    <div className="flex items-start justify-between gap-3 p-4 pb-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-base font-semibold md:text-lg">
-                          {subSplit.poNumber
-                            ? `PO: ${subSplit.poNumber}`
-                            : `Split ${index + 1}`}
-                        </p>
-                        <div className="mt-1 space-y-1 text-xs text-muted-foreground">
-                          {typeof subSplit.sourcePage === "number" ? (
-                            <p>{`Source page ${subSplit.sourcePage}`}</p>
+                  return (
+                    <div
+                      key={subSplit.id}
+                      ref={(node) => {
+                        if (isHighlighted) {
+                          highlightedCardRef.current = node;
+                        }
+                      }}
+                      className={`group overflow-hidden rounded-3xl border bg-card text-left shadow-sm transition duration-200 ${isHighlighted ? "border-yellow-400 ring-2 ring-yellow-300/70 shadow-[0_0_0_1px_rgba(250,204,21,0.35)] animate-pulse" : "border-border"}`}
+                    >
+                      <div
+                        className={`flex items-start justify-between gap-3 p-4 pb-3 select-text ${isHighlighted ? "bg-yellow-50" : ""}`}
+                      >
+                        <div className="min-w-0">
+                          <p className="text-base font-semibold wrap-break-word select-text md:text-lg">
+                            {subSplit.poNumber
+                              ? `PO: ${subSplit.poNumber}`
+                              : `Split ${index + 1}`}
+                          </p>
+                          {isHighlighted ? (
+                            <p className="mt-1 text-xs font-semibold text-yellow-700">
+                              Matched from dashboard search
+                            </p>
                           ) : null}
-                          {typeof subSplit.order === "number" ? (
-                            <p>Order {subSplit.order}</p>
-                          ) : null}
-                          {typeof subSplit.rowCount === "number" ? (
-                            <p>Rows {subSplit.rowCount}</p>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      <div className="shrink-0 pt-0.5 text-xs font-medium text-muted-foreground">
-                        {subSplit.status === "processing" ? (
-                          <span className="inline-flex items-center gap-1.5">
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            <span>
-                              {getStatusLabel(subSplit.status ?? "generated")}
-                            </span>
-                          </span>
-                        ) : (subSplit.status ?? "generated") === "failed" ? (
-                          <span className="inline-flex items-center gap-1.5 text-red-600">
-                            <XCircle className="h-3.5 w-3.5" />
-                            <span>
-                              {getStatusLabel(subSplit.status ?? "generated")}
-                            </span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 text-sky-600">
-                            <Check className="h-3.5 w-3.5" />
-                            <span>
-                              {getStatusLabel(subSplit.status ?? "generated")}
-                            </span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {subSplit.previewImageUrl ? (
-                      <div className="w-full px-4 pb-4">
-                        <div className="relative aspect-[8.5/11] w-full overflow-hidden rounded-[20px] border bg-background shadow-sm">
-                          <img
-                            src={subSplit.previewImageUrl}
-                            alt={
-                              subSplit.poNumber
-                                ? `PO: ${subSplit.poNumber} preview`
-                                : `Split ${index + 1} preview`
-                            }
-                            className="absolute inset-0 h-full w-full object-contain transition duration-200 group-hover:opacity-95"
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="px-4 pb-4">
-                        <div className="flex aspect-[8.5/11] items-center justify-center rounded-[20px] border border-dashed bg-background p-3 text-center text-sm text-muted-foreground">
-                          <div className="flex flex-col items-center gap-2">
-                            {(subSplit.status ?? "") === "processing" ? (
-                              <Loader2 className="h-5 w-5 animate-spin" />
+                          <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+                            {typeof subSplit.sourcePage === "number" ? (
+                              <p>{`Source page ${subSplit.sourcePage}`}</p>
                             ) : null}
-                            <span>Preview image not ready yet.</span>
+                            {typeof subSplit.order === "number" ? (
+                              <p>Order {subSplit.order}</p>
+                            ) : null}
+                            {typeof subSplit.rowCount === "number" ? (
+                              <p>Rows {subSplit.rowCount}</p>
+                            ) : null}
                           </div>
                         </div>
+
+                        <div className="shrink-0 pt-0.5 text-xs font-medium text-muted-foreground">
+                          {subSplit.status === "processing" ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              <span>
+                                {getStatusLabel(subSplit.status ?? "generated")}
+                              </span>
+                            </span>
+                          ) : (subSplit.status ?? "generated") === "failed" ? (
+                            <span className="inline-flex items-center gap-1.5 text-red-600">
+                              <XCircle className="h-3.5 w-3.5" />
+                              <span>
+                                {getStatusLabel(subSplit.status ?? "generated")}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 text-sky-600">
+                              <Check className="h-3.5 w-3.5" />
+                              <span>
+                                {getStatusLabel(subSplit.status ?? "generated")}
+                              </span>
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </button>
-                ))}
+
+                      {subSplit.previewImageUrl ? (
+                        <div className="w-full px-4 pb-4">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              openPreviewModal(
+                                subSplit.previewImageUrl!,
+                                subSplit.poNumber
+                                  ? `PO: ${subSplit.poNumber}`
+                                  : `Split ${index + 1}`,
+                                [
+                                  `Status: ${getStatusLabel(subSplit.status ?? "generated")}`,
+                                  typeof subSplit.order === "number"
+                                    ? `Order: ${subSplit.order}`
+                                    : "Order pending",
+                                  typeof subSplit.rowCount === "number"
+                                    ? `Rows: ${subSplit.rowCount}`
+                                    : "Rows pending",
+                                  typeof subSplit.sourcePage === "number"
+                                    ? `Source page: ${subSplit.sourcePage}`
+                                    : "Source page pending",
+                                ],
+                              );
+                            }}
+                            className="block w-full cursor-pointer"
+                          >
+                            <div className="relative aspect-[8.5/11] w-full overflow-hidden rounded-[20px] border bg-background shadow-sm transition duration-200 hover:scale-[1.02] hover:shadow-md">
+                              <img
+                                src={subSplit.previewImageUrl}
+                                alt={
+                                  subSplit.poNumber
+                                    ? `PO: ${subSplit.poNumber} preview`
+                                    : `Split ${index + 1} preview`
+                                }
+                                className="absolute inset-0 h-full w-full object-contain transition duration-200 group-hover:opacity-95"
+                              />
+                            </div>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="px-4 pb-4">
+                          <div className="flex aspect-[8.5/11] items-center justify-center rounded-[20px] border border-dashed bg-background p-3 text-center text-sm text-muted-foreground">
+                            <div className="flex flex-col items-center gap-2">
+                              {(subSplit.status ?? "") === "processing" ? (
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                              ) : null}
+                              <span>Preview image not ready yet.</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </>
           )}

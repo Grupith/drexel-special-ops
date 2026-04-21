@@ -101,6 +101,10 @@ function normalizeText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
+function normalizePoNumber(poNumber: string): string {
+  return poNumber.trim().toUpperCase();
+}
+
 function buildStorageDownloadUrl(bucketName: string, filePath: string): string {
   return `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(filePath)}?alt=media`;
 }
@@ -428,6 +432,7 @@ export const processShawBol = functions.storage.onObjectFinalized(
     const fileExtension = match[3].toLowerCase();
     const splitRef = db.doc(`splits/${splitId}`);
     const bucket = admin.storage().bucket(bucketName);
+    let splitCreatedBy = "";
     const tempFile = path.join(
       os.tmpdir(),
       `shaw_bol_${splitId}_${Date.now()}.jpg`,
@@ -458,7 +463,10 @@ export const processShawBol = functions.storage.onObjectFinalized(
         if (!snap.exists)
           throw new Error(`Split document not found: ${splitId}`);
 
-        const status = snap.data()?.status as string | undefined;
+        const splitData = snap.data() ?? {};
+        const status = splitData.status as string | undefined;
+        splitCreatedBy =
+          typeof splitData.createdBy === "string" ? splitData.createdBy : "";
         if (
           status !== undefined &&
           ["queued", "processing", "splitting", "completed"].includes(status)
@@ -484,6 +492,10 @@ export const processShawBol = functions.storage.onObjectFinalized(
           }),
         );
       });
+
+      if (!splitCreatedBy) {
+        throw new Error(`Split document missing createdBy: ${splitId}`);
+      }
 
       console.log(`Starting processing for split ${splitId}`);
 
@@ -627,6 +639,7 @@ export const processShawBol = functions.storage.onObjectFinalized(
         const subSplitId = subSplitRef.id;
 
         group.sort((a, b) => a.minY - b.minY);
+        const poNumberNormalized = normalizePoNumber(poNumber);
 
         const headerBuffer = await sharp(imageBuffer)
           .extract({ left: 0, top: 0, width: imageWidth, height: headerHeight })
@@ -706,7 +719,10 @@ export const processShawBol = functions.storage.onObjectFinalized(
 
         await subSplitRef.set({
           poNumber,
-          order,
+          poNumberNormalized,
+          splitCreatedBy,
+          splitId,
+          order: currentOrder,
           rowCount: group.length,
           imagePath,
           imageUrl,

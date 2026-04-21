@@ -95,6 +95,9 @@ function getBounds(vertices = []) {
 function normalizeText(text) {
     return text.replace(/\s+/g, " ").trim();
 }
+function normalizePoNumber(poNumber) {
+    return poNumber.trim().toUpperCase();
+}
 function buildStorageDownloadUrl(bucketName, filePath) {
     return `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(filePath)}?alt=media`;
 }
@@ -342,6 +345,7 @@ exports.processShawBol = functions.storage.onObjectFinalized({
     const fileExtension = match[3].toLowerCase();
     const splitRef = db.doc(`splits/${splitId}`);
     const bucket = admin.storage().bucket(bucketName);
+    let splitCreatedBy = "";
     const tempFile = path.join(os.tmpdir(), `shaw_bol_${splitId}_${Date.now()}.jpg`);
     if (!SUPPORTED_IMAGE_EXTENSIONS.has(fileExtension)) {
         console.warn(`Unsupported master file type for split ${splitId}: ${fileExtension}`);
@@ -359,7 +363,10 @@ exports.processShawBol = functions.storage.onObjectFinalized({
             const snap = await tx.get(splitRef);
             if (!snap.exists)
                 throw new Error(`Split document not found: ${splitId}`);
-            const status = snap.data()?.status;
+            const splitData = snap.data() ?? {};
+            const status = splitData.status;
+            splitCreatedBy =
+                typeof splitData.createdBy === "string" ? splitData.createdBy : "";
             if (status !== undefined &&
                 ["queued", "processing", "splitting", "completed"].includes(status)) {
                 throw new Error("already_processed");
@@ -378,6 +385,9 @@ exports.processShawBol = functions.storage.onObjectFinalized({
                 errorMessage: admin.firestore.FieldValue.delete(),
             }));
         });
+        if (!splitCreatedBy) {
+            throw new Error(`Split document missing createdBy: ${splitId}`);
+        }
         console.log(`Starting processing for split ${splitId}`);
         await splitRef.update(buildStatusPatch("processing", {
             statusLabel: "Processing",
@@ -477,6 +487,7 @@ exports.processShawBol = functions.storage.onObjectFinalized({
             const subSplitRef = db.collection(`splits/${splitId}/subSplits`).doc();
             const subSplitId = subSplitRef.id;
             group.sort((a, b) => a.minY - b.minY);
+            const poNumberNormalized = normalizePoNumber(poNumber);
             const headerBuffer = await (0, sharp_1.default)(imageBuffer)
                 .extract({ left: 0, top: 0, width: imageWidth, height: headerHeight })
                 .toBuffer();
@@ -530,7 +541,10 @@ exports.processShawBol = functions.storage.onObjectFinalized({
             const imageUrl = buildStorageDownloadUrl(bucketName, imagePath);
             await subSplitRef.set({
                 poNumber,
-                order,
+                poNumberNormalized,
+                splitCreatedBy,
+                splitId,
+                order: currentOrder,
                 rowCount: group.length,
                 imagePath,
                 imageUrl,
