@@ -24,6 +24,7 @@ import { getDownloadURL, getStorage, ref } from "firebase/storage";
 
 import { Progress } from "@/components/ui/progress";
 import { db } from "@/lib/firebase/db";
+import { Separator } from "radix-ui";
 
 type SplitDoc = {
   vendorId: string;
@@ -62,8 +63,14 @@ function getStatusStyles(status: string) {
   switch (status) {
     case "uploaded":
       return "bg-gray-100 text-gray-700 border-gray-200";
+    case "queued":
+      return "bg-slate-100 text-slate-700 border-slate-200";
     case "processing":
       return "bg-yellow-100 text-yellow-800 border-yellow-200";
+    case "splitting":
+      return "bg-amber-100 text-amber-800 border-amber-200";
+    case "uploading":
+      return "bg-blue-100 text-blue-700 border-blue-200";
     case "generated":
       return "bg-green-100 text-green-700 border-green-200";
     case "completed":
@@ -79,8 +86,14 @@ function getStatusLabel(status: string) {
   switch (status) {
     case "uploaded":
       return "Uploaded";
+    case "queued":
+      return "Queued";
     case "processing":
       return "Processing";
+    case "splitting":
+      return "Splitting";
+    case "uploading":
+      return "Uploading";
     case "generated":
       return "Generated";
     case "completed":
@@ -95,9 +108,15 @@ function getStatusLabel(status: string) {
 function getSplitProgressValue(status: string) {
   switch (status) {
     case "uploaded":
+      return 10;
+    case "queued":
       return 20;
     case "processing":
-      return 65;
+      return 45;
+    case "splitting":
+      return 70;
+    case "uploading":
+      return 90;
     case "generated":
       return 100;
     case "completed":
@@ -106,6 +125,28 @@ function getSplitProgressValue(status: string) {
       return 100;
     default:
       return 0;
+  }
+}
+
+function getSplitStatusDescription(status: string) {
+  switch (status) {
+    case "uploaded":
+      return "Upload received";
+    case "queued":
+      return "Waiting to start";
+    case "processing":
+      return "Reading document";
+    case "splitting":
+      return "Detecting rows and POs";
+    case "uploading":
+      return "Saving split images";
+    case "failed":
+      return "Processing failed";
+    case "generated":
+    case "completed":
+      return "Ready";
+    default:
+      return "Working";
   }
 }
 
@@ -146,7 +187,112 @@ export default function SplitViewPage() {
 
   function handlePrintAll() {
     if (typeof window === "undefined") return;
-    window.print();
+
+    const printableSubSplits = subSplits.filter(
+      (subSplit) => subSplit.previewImageUrl,
+    );
+
+    if (printableSubSplits.length === 0) {
+      toast.error("No split images are ready to print yet.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank", "width=900,height=1200");
+
+    if (!printWindow) {
+      toast.error("Unable to open print window.");
+      return;
+    }
+
+    const imageMarkup = printableSubSplits
+      .map(
+        (subSplit, index) => `
+          <div class="print-page">
+            <img
+              src="${subSplit.previewImageUrl}"
+              alt="${subSplit.poNumber ? `PO ${subSplit.poNumber}` : `Split ${index + 1}`}"
+            />
+          </div>
+        `,
+      )
+      .join("");
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Drexel Special Operations App: Print Split Images</title>
+          <style>
+            @page {
+              size: auto;
+              margin: 0.35in;
+            }
+
+            html, body {
+              margin: 0;
+              padding: 0;
+              background: white;
+            }
+
+            body {
+              font-family: Arial, sans-serif;
+            }
+
+            .print-page {
+              break-after: page;
+              page-break-after: always;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 100vh;
+              padding: 0;
+            }
+
+            .print-page:last-child {
+              break-after: auto;
+              page-break-after: auto;
+            }
+
+            img {
+              max-width: 100%;
+              max-height: 100vh;
+              width: auto;
+              height: auto;
+              object-fit: contain;
+              display: block;
+            }
+          </style>
+        </head>
+        <body>
+          ${imageMarkup}
+          <script>
+            const images = Array.from(document.images);
+            Promise.all(
+              images.map((img) =>
+                img.complete
+                  ? Promise.resolve()
+                  : new Promise((resolve) => {
+                      img.onload = resolve;
+                      img.onerror = resolve;
+                    })
+              )
+            ).then(() => {
+              window.focus();
+              setTimeout(() => {
+                window.print();
+              }, 150);
+            });
+
+            window.addEventListener("afterprint", () => {
+              setTimeout(() => {
+                window.close();
+              }, 150);
+            });
+          </script>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
   }
 
   const [previewModalImageUrl, setPreviewModalImageUrl] = React.useState<
@@ -176,7 +322,7 @@ export default function SplitViewPage() {
     React.useState(false);
   const [isResolvingPreviewUrls, setIsResolvingPreviewUrls] =
     React.useState(false);
-  const hasShownCompletedToastRef = React.useRef(false);
+  const previousSplitStatusRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     if (!splitId) return;
@@ -189,7 +335,6 @@ export default function SplitViewPage() {
     setHasReceivedSplitSnapshot(false);
     setHasReceivedSubSplitsSnapshot(false);
     setIsResolvingPreviewUrls(false);
-    hasShownCompletedToastRef.current = false;
 
     const splitRef = doc(db, "splits", splitId);
     const subSplitsRef = collection(db, "splits", splitId, "subSplits");
@@ -276,11 +421,20 @@ export default function SplitViewPage() {
   React.useEffect(() => {
     if (!splitId || !split) return;
 
-    if (split.status === "completed" && !hasShownCompletedToastRef.current) {
-      toast.success("Split complete!");
-      hasShownCompletedToastRef.current = true;
+    const previousStatus = previousSplitStatusRef.current;
+    const currentStatus = split.status;
+
+    if (previousStatus === null) {
+      previousSplitStatusRef.current = currentStatus;
+      return;
     }
-  }, [splitId, split, subSplits.length]);
+
+    if (previousStatus !== "completed" && currentStatus === "completed") {
+      toast.success("Split complete!");
+    }
+
+    previousSplitStatusRef.current = currentStatus;
+  }, [splitId, split?.status]);
 
   React.useEffect(() => {
     if (!previewModalImageUrl) return;
@@ -333,11 +487,20 @@ export default function SplitViewPage() {
   }
 
   const previewCount = subSplits.length;
+  const hasRenderableSubSplits = subSplits.length > 0;
+  const canPrintAll =
+    split.status === "completed" &&
+    subSplits.length > 0 &&
+    subSplits.every((subSplit) => subSplit.status === "generated");
   const isActivelyLoadingPreviews =
-    loading ||
-    isResolvingPreviewUrls ||
-    split.status === "uploaded" ||
-    split.status === "processing";
+    !hasRenderableSubSplits &&
+    (loading ||
+      isResolvingPreviewUrls ||
+      split.status === "uploaded" ||
+      split.status === "queued" ||
+      split.status === "processing" ||
+      split.status === "splitting" ||
+      split.status === "uploading");
   const showImagePreview = isImageFile(split.fileName);
 
   return (
@@ -367,8 +530,17 @@ export default function SplitViewPage() {
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-col items-stretch gap-3 md:min-w-[320px] md:items-end">
-          <div className="w-full rounded-3xl  bg-muted/20 p-4 md:max-w-90">
+        <div className="flex shrink-0 flex-col items-stretch gap-3 md:min-w-105 md:flex-row md:items-stretch md:justify-end">
+          <div className="flex w-full flex-col justify-center rounded-3xl bg-muted/60 p-4 md:max-w-37.5">
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+              SubSplits Created
+            </p>
+            <p className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">
+              {subSplits.length}
+            </p>
+          </div>
+
+          <div className="w-full rounded-3xl bg-muted/60 p-4 md:max-w-100">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
@@ -384,8 +556,13 @@ export default function SplitViewPage() {
                   split.status,
                 )}`}
               >
-                {split.status === "uploaded" ||
-                split.status === "processing" ? (
+                {[
+                  "uploaded",
+                  "queued",
+                  "processing",
+                  "splitting",
+                  "uploading",
+                ].includes(split.status) ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : split.status === "failed" ? (
                   <XCircle className="h-4 w-4" />
@@ -401,15 +578,7 @@ export default function SplitViewPage() {
             />
 
             <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-              <span>
-                {split.status === "uploaded"
-                  ? "Queued"
-                  : split.status === "processing"
-                    ? "Generating previews"
-                    : split.status === "failed"
-                      ? "Processing failed"
-                      : "Ready"}
-              </span>
+              <span>{getSplitStatusDescription(split.status)}</span>
               <span>{getSplitProgressValue(split.status)}%</span>
             </div>
           </div>
@@ -430,11 +599,13 @@ export default function SplitViewPage() {
                 }
                 className="group block w-full cursor-pointer"
               >
-                <img
-                  src={split.originalImageUrl}
-                  alt={split.fileName}
-                  className="aspect-[8.5/11] w-full rounded-[22px] border bg-background object-contain transition duration-200 group-hover:scale-[1.01] group-hover:opacity-95"
-                />
+                <div className="relative aspect-[8.5/11] w-full overflow-hidden rounded-[22px] border bg-background">
+                  <img
+                    src={split.originalImageUrl}
+                    alt={split.fileName}
+                    className="absolute inset-0 h-full w-full object-contain transition duration-200 group-hover:scale-[1.01] group-hover:opacity-95"
+                  />
+                </div>
               </button>
             ) : (
               <div className="flex aspect-[8.5/11] items-center justify-center rounded-[22px] border bg-background p-6 text-center text-sm text-muted-foreground">
@@ -456,34 +627,105 @@ export default function SplitViewPage() {
 
         <div className="space-y-5">
           {isActivelyLoadingPreviews ? (
-            <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-dashed px-4 py-3 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>
-                {previewCount > 0
-                  ? `${previewCount} preview${previewCount === 1 ? "" : "s"} ready`
-                  : split.status === "uploaded"
-                    ? "Upload received. Waiting for processing to begin."
-                    : split.status === "processing"
-                      ? "Generating split previews..."
-                      : "Loading previews..."}
-              </span>
-            </div>
+            <>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-medium text-muted-foreground">
+                  Split images
+                </p>
+
+                {canPrintAll ? (
+                  <button
+                    type="button"
+                    onClick={handlePrintAll}
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-xl border bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
+                  >
+                    <Printer className="h-4 w-4" />
+                    <span>Print all</span>
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="rounded-2xl border border-dashed bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                {split.status === "queued"
+                  ? "Your file is uploaded and waiting for processing to begin."
+                  : split.status === "processing"
+                    ? "The document is being analyzed before split previews can be created."
+                    : split.status === "splitting"
+                      ? "Split regions are being identified and prepared into preview cards."
+                      : split.status === "uploading"
+                        ? "Generated split images are being saved and will appear here shortly."
+                        : "Your split previews will appear here as soon as they are ready."}
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {Array.from({
+                  length: Math.max(
+                    subSplits.length,
+                    ["processing", "splitting", "uploading"].includes(
+                      split.status,
+                    )
+                      ? 3
+                      : 2,
+                  ),
+                }).map((_, index) => (
+                  <div
+                    key={`split-skeleton-${index}`}
+                    className="overflow-hidden rounded-3xl border bg-card shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3 p-4 pb-3">
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="h-4 w-32 animate-pulse rounded-md bg-muted" />
+                        <div className="space-y-1.5">
+                          <div className="h-3 w-24 animate-pulse rounded-md bg-muted" />
+                          <div className="h-3 w-20 animate-pulse rounded-md bg-muted" />
+                          <div className="h-3 w-16 animate-pulse rounded-md bg-muted" />
+                        </div>
+                      </div>
+
+                      <div className="shrink-0 pt-0.5">
+                        <div className="h-4 w-16 animate-pulse rounded-md bg-muted" />
+                      </div>
+                    </div>
+
+                    <div className="w-full px-4 pb-4">
+                      <div className="relative aspect-[8.5/11] w-full overflow-hidden rounded-[20px] border bg-background shadow-sm">
+                        <div className="absolute inset-0 animate-pulse bg-muted" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           ) : null}
 
-          {split.status === "failed" ? (
+          {!isActivelyLoadingPreviews && split.status === "failed" ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
               This split failed during processing. Once error handling is wired
               in, you can show more details here.
             </div>
-          ) : subSplits.length === 0 ? (
+          ) : !isActivelyLoadingPreviews && subSplits.length === 0 ? (
             <div className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
               No sub-splits have been generated yet.
             </div>
           ) : (
             <>
-              <p className="text-sm font-medium text-muted-foreground">
-                Split images
-              </p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-medium text-muted-foreground">
+                  Split images
+                </p>
+
+                {canPrintAll ? (
+                  <button
+                    type="button"
+                    onClick={handlePrintAll}
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-xl border bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
+                  >
+                    <Printer className="h-4 w-4" />
+                    <span>Print all</span>
+                  </button>
+                ) : null}
+              </div>
+
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {subSplits.map((subSplit, index) => (
                   <button
@@ -515,17 +757,15 @@ export default function SplitViewPage() {
                   >
                     <div className="flex items-start justify-between gap-3 p-4 pb-3">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold md:text-base">
+                        <p className="truncate text-base font-semibold md:text-lg">
                           {subSplit.poNumber
                             ? `PO: ${subSplit.poNumber}`
                             : `Split ${index + 1}`}
                         </p>
                         <div className="mt-1 space-y-1 text-xs text-muted-foreground">
-                          <p>
-                            {typeof subSplit.sourcePage === "number"
-                              ? `Source page ${subSplit.sourcePage}`
-                              : "Source page pending"}
-                          </p>
+                          {typeof subSplit.sourcePage === "number" ? (
+                            <p>{`Source page ${subSplit.sourcePage}`}</p>
+                          ) : null}
                           {typeof subSplit.order === "number" ? (
                             <p>Order {subSplit.order}</p>
                           ) : null}
@@ -563,15 +803,17 @@ export default function SplitViewPage() {
 
                     {subSplit.previewImageUrl ? (
                       <div className="w-full px-4 pb-4">
-                        <img
-                          src={subSplit.previewImageUrl}
-                          alt={
-                            subSplit.poNumber
-                              ? `PO: ${subSplit.poNumber} preview`
-                              : `Split ${index + 1} preview`
-                          }
-                          className="aspect-[8.5/11] w-full rounded-[20px] border bg-background object-contain shadow-sm transition duration-200 group-hover:opacity-95"
-                        />
+                        <div className="relative aspect-[8.5/11] w-full overflow-hidden rounded-[20px] border bg-background shadow-sm">
+                          <img
+                            src={subSplit.previewImageUrl}
+                            alt={
+                              subSplit.poNumber
+                                ? `PO: ${subSplit.poNumber} preview`
+                                : `Split ${index + 1} preview`
+                            }
+                            className="absolute inset-0 h-full w-full object-contain transition duration-200 group-hover:opacity-95"
+                          />
+                        </div>
                       </div>
                     ) : (
                       <div className="px-4 pb-4">
@@ -587,17 +829,6 @@ export default function SplitViewPage() {
                     )}
                   </button>
                 ))}
-              </div>
-
-              <div className="flex justify-center pt-2 xl:justify-end">
-                <button
-                  type="button"
-                  onClick={handlePrintAll}
-                  className="inline-flex items-center gap-2 rounded-2xl border px-5 py-2.5 text-sm font-medium transition hover:bg-muted"
-                >
-                  <Printer className="h-4 w-4" />
-                  <span>Print all</span>
-                </button>
               </div>
             </>
           )}
@@ -635,7 +866,7 @@ export default function SplitViewPage() {
                   target="_blank"
                   rel="noreferrer"
                   onClick={(event) => event.stopPropagation()}
-                  className="rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+                  className="rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-primary/90 bg-primary text-primary-foreground"
                 >
                   Open in new tab
                 </a>

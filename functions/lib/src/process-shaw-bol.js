@@ -49,7 +49,8 @@ const fs = __importStar(require("fs/promises"));
 const db = admin.firestore();
 const vision = new vision_1.ImageAnnotatorClient();
 // ==================== CONFIG ====================
-const SPLIT_PATH_REGEX = /^splits\/([^/]+)\/original\/[^/]+\.(jpg|jpeg|png)$/i;
+const SPLIT_PATH_REGEX = /^splits\/([^/]+)\/original\/([^/]+)\.([^.]+)$/i;
+const SUPPORTED_IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png"]);
 const CONFIG = {
     memory: "2GiB",
     rowMergeTolerance: 12,
@@ -61,6 +62,7 @@ const CONFIG = {
     groupTopPadding: 30,
     groupBottomPadding: 16,
     jpegQuality: 92,
+    uploadProgressMaxPercent: 95,
 };
 // ===============================================
 function getBounds(vertices = []) {
@@ -95,6 +97,22 @@ function normalizeText(text) {
 }
 function buildStorageDownloadUrl(bucketName, filePath) {
     return `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(filePath)}?alt=media`;
+}
+function buildStatusPatch(status, patch = {}) {
+    return {
+        status,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        ...patch,
+    };
+}
+function getUploadProgressPercent(completed, total) {
+    if (total <= 0)
+        return 80;
+    const boundedCompleted = Math.min(Math.max(completed, 0), total);
+    const ratio = boundedCompleted / total;
+    const min = 80;
+    const max = CONFIG.uploadProgressMaxPercent;
+    return Math.round(min + ratio * (max - min));
 }
 function buildWordsFromVisionPage(page) {
     const words = [];
@@ -314,12 +332,27 @@ exports.processShawBol = functions.storage.onObjectFinalized({
     const filePath = event.data.name ?? "";
     const bucketName = event.data.bucket ?? "";
     const match = filePath.match(SPLIT_PATH_REGEX);
-    if (!match || !bucketName)
+    if (!bucketName)
         return;
+    if (!match) {
+        console.log(`Ignoring finalized file that does not match split original path: ${filePath}`);
+        return;
+    }
     const splitId = match[1];
+    const fileExtension = match[3].toLowerCase();
     const splitRef = db.doc(`splits/${splitId}`);
     const bucket = admin.storage().bucket(bucketName);
     const tempFile = path.join(os.tmpdir(), `shaw_bol_${splitId}_${Date.now()}.jpg`);
+    if (!SUPPORTED_IMAGE_EXTENSIONS.has(fileExtension)) {
+        console.warn(`Unsupported master file type for split ${splitId}: ${fileExtension}`);
+        await splitRef.set(buildStatusPatch("failed", {
+            statusLabel: "Failed",
+            statusMessage: `Unsupported file type: .${fileExtension}. Please upload a JPG or PNG image.`,
+            progressPercent: 100,
+            errorMessage: `Unsupported file type: .${fileExtension}`,
+        }), { merge: true });
+        return;
+    }
     try {
         // Lock with transaction
         await db.runTransaction(async (tx) => {
@@ -328,17 +361,29 @@ exports.processShawBol = functions.storage.onObjectFinalized({
                 throw new Error(`Split document not found: ${splitId}`);
             const status = snap.data()?.status;
             if (status !== undefined &&
-                ["processing", "completed", "failed"].includes(status)) {
+                ["queued", "processing", "splitting", "completed"].includes(status)) {
                 throw new Error("already_processed");
             }
-            tx.update(splitRef, {
-                status: "processing",
+            // Allow initial frontend statuses like "uploading" or "uploaded"
+            // to transition into backend-owned processing statuses.
+            tx.update(splitRef, buildStatusPatch("queued", {
+                statusLabel: "Queued",
+                statusMessage: "Split received and waiting to start.",
+                progressPercent: 5,
                 startedAt: admin.firestore.FieldValue.serverTimestamp(),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                processedAt: admin.firestore.FieldValue.delete(),
+                completedAt: admin.firestore.FieldValue.delete(),
+                subSplitCount: admin.firestore.FieldValue.delete(),
+                subSplitsGenerated: admin.firestore.FieldValue.delete(),
                 errorMessage: admin.firestore.FieldValue.delete(),
-            });
+            }));
         });
         console.log(`Starting processing for split ${splitId}`);
+        await splitRef.update(buildStatusPatch("processing", {
+            statusLabel: "Processing",
+            statusMessage: "Preparing image and clearing any previous sub-splits.",
+            progressPercent: 15,
+        }));
         await deleteExistingSubSplits(splitId, bucketName);
         await bucket.file(filePath).download({ destination: tempFile });
         const imageBuffer = await fs.readFile(tempFile);
@@ -349,6 +394,11 @@ exports.processShawBol = functions.storage.onObjectFinalized({
         const imageWidth = metadata.width;
         const imageHeight = metadata.height;
         console.log(`Image dimensions: ${imageWidth}x${imageHeight}`);
+        await splitRef.update(buildStatusPatch("splitting", {
+            statusLabel: "Reading rows",
+            statusMessage: "Scanning the document and detecting PO rows.",
+            progressPercent: 45,
+        }));
         // OCR
         const [result] = await vision.documentTextDetection({
             image: { content: imageBuffer },
@@ -413,9 +463,17 @@ exports.processShawBol = functions.storage.onObjectFinalized({
         });
         const orderedRows = [...rows].sort((a, b) => a.minY - b.minY);
         console.log(`Found ${poGroups.size} unique PO numbers`);
+        await splitRef.update(buildStatusPatch("uploading", {
+            statusLabel: "Generating splits",
+            statusMessage: `Generating 0 of ${poGroups.size} split images.`,
+            progressPercent: getUploadProgressPercent(0, poGroups.size),
+            subSplitCount: poGroups.size,
+            subSplitsGenerated: 0,
+        }));
         let order = 0;
         for (const [poNumber, group] of poGroups.entries()) {
             order++;
+            const currentOrder = order;
             const subSplitRef = db.collection(`splits/${splitId}/subSplits`).doc();
             const subSplitId = subSplitRef.id;
             group.sort((a, b) => a.minY - b.minY);
@@ -481,18 +539,30 @@ exports.processShawBol = functions.storage.onObjectFinalized({
                 cropBottom: groupBottom,
                 cropHeight: groupHeight,
                 outputHeight,
+                sourceStatus: "uploading",
                 status: "generated",
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
+            await splitRef.update(buildStatusPatch("uploading", {
+                statusLabel: "Generating splits",
+                statusMessage: `Generating ${currentOrder} of ${poGroups.size} split images.`,
+                progressPercent: getUploadProgressPercent(currentOrder, poGroups.size),
+                subSplitCount: poGroups.size,
+                subSplitsGenerated: currentOrder,
+                latestGeneratedPo: poNumber,
+            }));
             console.log(`✅ Created sub-split for PO ${poNumber} (${group.length} rows)`);
         }
-        await splitRef.update({
-            status: "completed",
+        await splitRef.update(buildStatusPatch("completed", {
+            statusLabel: "Completed",
+            statusMessage: `Generated ${poGroups.size} split image${poGroups.size === 1 ? "" : "s"}.`,
+            progressPercent: 100,
             subSplitCount: poGroups.size,
+            subSplitsGenerated: poGroups.size,
             processedAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+            completedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }));
         console.log(`✅ Successfully completed split ${splitId} with ${poGroups.size} sub-splits.`);
     }
     catch (error) {
@@ -502,11 +572,12 @@ exports.processShawBol = functions.storage.onObjectFinalized({
             return;
         }
         console.error(`❌ Processing failed for ${splitId}:`, error);
-        await splitRef.set({
-            status: "failed",
+        await splitRef.set(buildStatusPatch("failed", {
+            statusLabel: "Failed",
+            statusMessage: "Split generation failed.",
+            progressPercent: 100,
             errorMessage: message,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });
+        }), { merge: true });
     }
     finally {
         await fs.unlink(tempFile).catch(() => { });

@@ -84,6 +84,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     null,
   );
   const [isDeleting, setIsDeleting] = React.useState(false);
+  const [deletingSplitId, setDeletingSplitId] = React.useState<string | null>(
+    null,
+  );
 
   if (!user) {
     return null;
@@ -128,10 +131,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
     try {
       setIsDeleting(true);
+      setDeletingSplitId(splitToDelete.id);
       await deleteSplitCallable({ splitId: splitToDelete.id });
       setSplitToDelete(null);
     } catch (error) {
       console.error("Failed to delete split:", error);
+      setDeletingSplitId(null);
     } finally {
       setIsDeleting(false);
     }
@@ -142,6 +147,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     email: user.email ?? "",
     avatar: user.photoURL ?? "/avatars/default.jpg",
   };
+
+  React.useEffect(() => {
+    if (!deletingSplitId) return;
+
+    const splitStillExists = recentSplits.some(
+      (split) => split.id === deletingSplitId,
+    );
+
+    if (!splitStillExists) {
+      setDeletingSplitId(null);
+    }
+  }, [recentSplits, deletingSplitId]);
 
   return (
     <>
@@ -168,35 +185,63 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     key={split.id}
                     className="group flex items-start gap-1 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   >
-                    <Link
-                      href={`/splitter/${split.id}`}
-                      className="flex min-w-0 flex-1 items-start gap-2 px-2 py-2 text-sm"
-                    >
-                      <FolderOpen className="mt-0.5 h-4 w-4 shrink-0" />
-                      <div className="min-w-0">
-                        <div className="truncate font-medium">
-                          {split.fileName ?? `Split ${split.id.slice(0, 6)}`}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-xs capitalize text-muted-foreground">
-                          <span
-                            className="h-2 w-2 rounded-full bg-sky-500"
-                            aria-hidden="true"
-                          />
-                          {split.status ?? "uploaded"}
-                        </div>
-                      </div>
-                    </Link>
+                    {(() => {
+                      const isDeletingThisSplit = deletingSplitId === split.id;
 
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="cursor-pointer mt-1 mr-1 h-8 w-8 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
-                      aria-label={`Delete ${split.fileName ?? `Split ${split.id.slice(0, 6)}`}`}
-                      onClick={() => setSplitToDelete(split)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                      return (
+                        <>
+                          {isDeletingThisSplit ? (
+                            <div className="flex min-w-0 flex-1 items-start gap-2 px-2 py-2 text-sm opacity-60">
+                              <FolderOpen className="mt-0.5 h-4 w-4 shrink-0" />
+                              <div className="min-w-0">
+                                <div className="truncate font-medium">
+                                  {split.fileName ??
+                                    `Split ${split.id.slice(0, 6)}`}
+                                </div>
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                  <span
+                                    className="h-2 w-2 rounded-full bg-destructive"
+                                    aria-hidden="true"
+                                  />
+                                  Deleting...
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <Link
+                              href={`/splitter/${split.id}`}
+                              className="flex min-w-0 flex-1 items-start gap-2 px-2 py-2 text-sm"
+                            >
+                              <FolderOpen className="mt-0.5 h-4 w-4 shrink-0" />
+                              <div className="min-w-0">
+                                <div className="truncate font-medium">
+                                  {split.fileName ??
+                                    `Split ${split.id.slice(0, 6)}`}
+                                </div>
+                                <div className="flex items-center gap-1.5 text-xs capitalize text-muted-foreground">
+                                  <span
+                                    className="h-2 w-2 rounded-full bg-sky-500"
+                                    aria-hidden="true"
+                                  />
+                                  {split.status ?? "uploaded"}
+                                </div>
+                              </div>
+                            </Link>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="cursor-pointer mt-1 mr-1 h-8 w-8 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100 disabled:pointer-events-none disabled:opacity-100"
+                            aria-label={`Delete ${split.fileName ?? `Split ${split.id.slice(0, 6)}`}`}
+                            onClick={() => setSplitToDelete(split)}
+                            disabled={isDeletingThisSplit}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      );
+                    })()}
                   </div>
                 ))
               ) : (
@@ -221,7 +266,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           }
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent
+          onEscapeKeyDown={(event) => {
+            if (isDeleting) {
+              event.preventDefault();
+            }
+          }}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>Delete split?</AlertDialogTitle>
             <AlertDialogDescription>

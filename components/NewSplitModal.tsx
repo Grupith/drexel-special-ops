@@ -30,7 +30,16 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { FolderUp, NotebookPen, ScrollText, Store, Upload } from "lucide-react";
+import {
+  FileImage,
+  FileText,
+  FolderUp,
+  Loader2,
+  NotebookPen,
+  ScrollText,
+  Store,
+  Upload,
+} from "lucide-react";
 
 type VendorOption = { id: string; name: string };
 
@@ -154,6 +163,7 @@ export function NewSplitModal({
     <Dialog
       open={open}
       onOpenChange={(v) => {
+        if (submitting) return;
         setOpen(v);
         if (!v) resetForm();
       }}
@@ -162,13 +172,21 @@ export function NewSplitModal({
         {trigger ?? <Button>New Split</Button>}
       </DialogTrigger>
 
-      <DialogContent className="border-border/70 bg-linear-to-br from-background via-card to-secondary/50 p-0 shadow-xl sm:max-w-160">
+      <DialogContent
+        className="border-border/70 bg-linear-to-br from-background via-card to-secondary/50 p-0 shadow-xl sm:max-w-160"
+        onPointerDownOutside={(e) => {
+          if (submitting) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (submitting) e.preventDefault();
+        }}
+      >
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-linear-to-b from-accent/70 to-transparent"
         />
 
-        <DialogHeader className="relative shrink-0 gap-3 border-b border-border/60 bg-secondary/75 px-4 pt-4 pb-3 text-left sm:px-6 sm:pt-5 sm:pb-4">
+        <DialogHeader className="relative shrink-0 gap-2 border-b border-border/60 bg-secondary/75 px-4 pt-4 pb-2 text-left sm:px-6 sm:pt-5 sm:pb-3">
           <div className="flex items-align gap-3 sm:gap-4">
             <div className="flex size-10 items-center justify-center rounded-xl border border-border/70 bg-background/85 text-foreground shadow-sm backdrop-blur-sm sm:size-12 sm:rounded-2xl">
               <ScrollText className="size-4 sm:size-5" />
@@ -188,11 +206,21 @@ export function NewSplitModal({
           className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain"
           onSubmit={handleSubmit}
         >
-          <div className="space-y-4 px-4 pt-4 pb-6 sm:px-6 sm:pt-5 sm:pb-8">
-            <div className="space-y-2.5 sm:space-y-3">
+          {submitting ? (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/55 backdrop-blur-[2px]">
+              <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-card/95 px-4 py-3 shadow-lg">
+                <Loader2 className="size-4 animate-spin text-primary" />
+                <span className="text-sm font-medium text-foreground">
+                  Creating split...
+                </span>
+              </div>
+            </div>
+          ) : null}
+          <div className="space-y-3 px-4 pt-2 pb-6 sm:px-6 sm:pt-3 sm:pb-4">
+            <div className="space-y-2 sm:space-y-2.5">
               {/* Vendor Selection */}
 
-              <div className="space-y-2.5 rounded-[calc(var(--radius)+6px)] bg-card/20 p-3 sm:space-y-3 sm:p-4">
+              <div className="space-y-2 sm:space-y-2.5 rounded-[calc(var(--radius)+6px)] bg-card/20 p-3 sm:p-4">
                 <Label
                   htmlFor="vendor"
                   className="flex items-center gap-2 text-[13px] font-medium sm:text-sm"
@@ -202,6 +230,7 @@ export function NewSplitModal({
                 </Label>
                 <Select
                   value={vendorId}
+                  disabled={submitting}
                   onValueChange={(v) => {
                     setVendorId(v);
                     setErrors((prev) => ({ ...prev, vendorId: undefined }));
@@ -209,7 +238,7 @@ export function NewSplitModal({
                 >
                   <SelectTrigger
                     id="vendor"
-                    className="h-12 w-full rounded-lg border-border/80 bg-background/80 text-sm shadow-xs backdrop-blur-sm"
+                    className="h-12 w-full cursor-pointer rounded-lg border-border/80 bg-background/80 px-3.5 text-sm shadow-xs backdrop-blur-sm"
                   >
                     <SelectValue placeholder="Select a vendor" />
                   </SelectTrigger>
@@ -232,7 +261,7 @@ export function NewSplitModal({
 
               {/* Comment */}
 
-              <div className="space-y-2.5 rounded-[calc(var(--radius)+6px)] p-3 sm:space-y-3 sm:p-4">
+              <div className="space-y-2 sm:space-y-2.5 rounded-[calc(var(--radius)+6px)] p-3 sm:p-4">
                 <Label
                   htmlFor="comment"
                   className="flex items-center gap-2 text-[13px] font-medium sm:text-sm"
@@ -240,32 +269,30 @@ export function NewSplitModal({
                   <NotebookPen className="size-4 text-muted-foreground" />
                   Comment (optional)
                 </Label>
-                <Textarea
+                <Input
                   id="comment"
                   placeholder="Any notes..."
                   value={comment}
+                  disabled={submitting}
                   onChange={(e) => setComment(e.target.value)}
-                  className="min-h-24 rounded-lg border-border/80 bg-background/70 px-3.5 py-3 text-sm shadow-xs backdrop-blur-sm sm:min-h-28"
+                  className="h-12 w-full rounded-lg border-border/80 bg-background/80 px-3.5 text-sm shadow-xs backdrop-blur-sm"
                 />
               </div>
 
               {/* Master Document */}
 
-              <div className="space-y-2.5 rounded-[calc(var(--radius)+6px)] p-3 sm:space-y-3 sm:p-4">
-                <Label
-                  htmlFor="file"
-                  className="flex items-center gap-2 text-[13px] font-medium sm:text-sm"
-                >
+              <div className="space-y-2 sm:space-y-2.5 rounded-[calc(var(--radius)+6px)] p-3 sm:p-4">
+                <Label className="flex items-center gap-2 text-[13px] font-medium sm:text-sm">
                   <FolderUp className="size-4 text-muted-foreground" />
-                  Master document
+                  Upload Image
                 </Label>
 
                 <div
                   className={cn(
-                    "relative rounded-xl border border-border/70 bg-background/75 transition-colors",
+                    "group relative overflow-hidden rounded-2xl border border-dashed transition-all",
                     file
-                      ? "border-primary/30 bg-primary/5"
-                      : "hover:bg-accent/30",
+                      ? "border-primary/50 bg-primary/5 shadow-sm"
+                      : "border-border/90 bg-background/70 hover:border-primary/50 hover:bg-accent/30",
                   )}
                 >
                   <Input
@@ -273,7 +300,8 @@ export function NewSplitModal({
                     type="file"
                     accept="application/pdf,image/*"
                     ref={fileInputRef}
-                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    disabled={submitting}
+                    className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
                     onChange={(e) => {
                       const f = e.target.files?.[0] ?? null;
                       setFile(f);
@@ -281,30 +309,53 @@ export function NewSplitModal({
                     }}
                   />
 
-                  <div className="flex min-h-32 items-center justify-center px-4 py-6 text-center">
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-linear-to-b from-primary/8 to-transparent"
+                  />
+
+                  <div className="relative flex min-h-44 flex-col items-center justify-center px-5 py-8 text-center sm:min-h-48 sm:px-6">
+                    <div
+                      className={cn(
+                        "mb-4 flex size-14 items-center justify-center rounded-2xl border shadow-sm transition-transform",
+                        file
+                          ? "border-primary/30 bg-background text-primary"
+                          : "border-border/70 bg-background/90 text-foreground group-hover:scale-[1.03]",
+                      )}
+                    >
+                      {file ? (
+                        file.type === "application/pdf" ? (
+                          <FileText className="size-6" />
+                        ) : (
+                          <FileImage className="size-6" />
+                        )
+                      ) : (
+                        <Upload className="size-6" />
+                      )}
+                    </div>
+
                     {file ? (
-                      <div className="space-y-1">
-                        <div className="mx-auto mb-2 flex size-10 items-center justify-center rounded-full border border-border/70 bg-background/80 text-foreground shadow-sm">
-                          <Upload className="size-4" />
-                        </div>
-                        <p className="truncate text-sm font-medium text-foreground">
+                      <div className="space-y-2">
+                        <p className="max-w-88 truncate text-sm font-semibold text-foreground sm:text-base">
                           {file.name}
                         </p>
-                        <p className="text-xs text-muted-foreground">
-                          Tap to replace
+                        <p className="text-xs text-muted-foreground sm:text-sm">
+                          File selected. Click to replace it.
                         </p>
                       </div>
                     ) : (
-                      <div className="space-y-1">
-                        <div className="mx-auto mb-2 flex size-10 items-center justify-center rounded-full border border-border/70 bg-background/80 text-foreground shadow-sm">
-                          <Upload className="size-4" />
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold text-foreground sm:text-base">
+                          Upload or drag your master document here
+                        </p>
+                        <p className="text-xs text-muted-foreground sm:text-sm">
+                          Drop a PDF or image, or click to browse files
+                        </p>
+                        <div className="pt-2">
+                          <span className="inline-flex items-center rounded-full border border-border/70 bg-background/90 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-xs sm:text-xs">
+                            Supports PDF, PNG, JPG, and more
+                          </span>
                         </div>
-                        <p className="text-sm font-medium text-foreground">
-                          Upload file
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          PDF or image
-                        </p>
                       </div>
                     )}
                   </div>
@@ -321,20 +372,28 @@ export function NewSplitModal({
             <Button
               type="button"
               variant="outline"
+              disabled={submitting}
               onClick={() => {
                 resetForm();
                 setOpen(false);
               }}
-              className="min-h-12 w-full rounded-lg px-4 text-sm shadow-sm cursor-pointer"
+              className="min-h-12 w-full cursor-pointer rounded-lg px-4 text-sm shadow-sm"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={submitting}
-              className="min-h-12 w-full rounded-lg px-4 text-sm shadow-sm cursor-pointer"
+              className="min-h-12 w-full cursor-pointer rounded-lg px-4 text-sm shadow-sm"
             >
-              {submitting ? "Creating..." : "Create Split"}
+              {submitting ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="size-4 animate-spin" />
+                  Creating...
+                </span>
+              ) : (
+                "Create Split"
+              )}
             </Button>
           </DialogFooter>
         </form>
