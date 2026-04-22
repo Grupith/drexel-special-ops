@@ -38,6 +38,7 @@ type SplitDoc = {
   originalImageUrl: string;
   fileName: string;
   comment?: string;
+  errorMessage?: string;
 };
 
 type SubSplitDoc = {
@@ -203,7 +204,7 @@ export default function SplitViewPage() {
     printWindow.document.write(`
       <html>
         <head>
-          <title>${title}</title>
+          <title> drexelspecialops.com | PO Splitter </title>
           <style>
             @page {
               size: auto;
@@ -300,7 +301,7 @@ export default function SplitViewPage() {
     printWindow.document.write(`
       <html>
         <head>
-          <title>Drexel Special Operations App: Print Split Images</title>
+          <title> drexelspecialops.com | PO Splitter </title>
           <style>
             @page {
               size: auto;
@@ -685,8 +686,16 @@ export default function SplitViewPage() {
           <div className="space-y-1">
             <div className="flex min-w-0 items-center gap-3">
               <span className="relative flex h-3 w-3 shrink-0">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-500 opacity-75" />
-                <span className="relative inline-flex h-3 w-3 rounded-full bg-sky-500" />
+                <span
+                  className={`absolute inline-flex h-full w-full animate-ping rounded-full ${
+                    split.status === "failed" ? "bg-red-500" : "bg-sky-500"
+                  } opacity-75`}
+                />
+                <span
+                  className={`relative inline-flex h-3 w-3 rounded-full ${
+                    split.status === "failed" ? "bg-red-500" : "bg-sky-500"
+                  }`}
+                />
               </span>
               <a
                 href={split.originalImageUrl}
@@ -712,7 +721,7 @@ export default function SplitViewPage() {
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-col items-stretch gap-3 md:min-w-105 md:flex-row md:items-stretch md:justify-end">
+        <div className="flex shrink-0 flex-col items-stretch gap-3 md:min-w-105 md:flex-row md:items-stretch md:justify-end lg:min-w-130">
           <div className="flex w-full flex-col justify-center rounded-3xl bg-muted/60 p-4 md:max-w-37.5">
             <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
               SubSplits Created
@@ -722,7 +731,7 @@ export default function SplitViewPage() {
             </p>
           </div>
 
-          <div className="w-full rounded-3xl bg-muted/60 p-4 md:max-w-100">
+          <div className="w-full rounded-3xl bg-muted/60 p-4 md:max-w-100 lg:max-w-125">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
@@ -887,8 +896,14 @@ export default function SplitViewPage() {
 
           {!isActivelyLoadingPreviews && split.status === "failed" ? (
             <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-              This split failed during processing. Once error handling is wired
-              in, you can show more details here.
+              <p className="font-medium">
+                This split failed during processing.
+              </p>
+              <p className="mt-2 wrap-break-word text-red-700/90">
+                {split.errorMessage?.trim()
+                  ? split.errorMessage
+                  : "No error details were provided."}
+              </p>
             </div>
           ) : !isActivelyLoadingPreviews && subSplits.length === 0 ? (
             <div className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">

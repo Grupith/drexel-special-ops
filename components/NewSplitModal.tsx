@@ -29,16 +29,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 import {
   FileImage,
-  FileText,
   FolderUp,
   Loader2,
   NotebookPen,
   ScrollText,
   Store,
-  Upload,
 } from "lucide-react";
 
 type VendorOption = { id: string; name: string };
@@ -62,17 +59,66 @@ export function NewSplitModal({
   const [vendorId, setVendorId] = React.useState("");
   const [comment, setComment] = React.useState("");
   const [file, setFile] = React.useState<File | null>(null);
-
   const [errors, setErrors] = React.useState<{
     vendorId?: string;
     file?: string;
   }>({});
   const [submitting, setSubmitting] = React.useState(false);
+  const [isDragActive, setIsDragActive] = React.useState(false);
+
+  const handleSelectedFile = React.useCallback((nextFile: File | null) => {
+    setFile(nextFile);
+    setErrors((prev) => ({ ...prev, file: undefined }));
+    setIsDragActive(false);
+  }, []);
+
+  const handleDragOver = React.useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      if (submitting) return;
+      setIsDragActive(true);
+    },
+    [submitting],
+  );
+
+  const handleDragLeave = React.useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      const nextTarget = e.relatedTarget as Node | null;
+      if (nextTarget && e.currentTarget.contains(nextTarget)) return;
+      setIsDragActive(false);
+    },
+    [],
+  );
+
+  const handleDrop = React.useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      if (submitting) return;
+      const droppedFile = e.dataTransfer.files?.[0] ?? null;
+      handleSelectedFile(droppedFile);
+    },
+    [handleSelectedFile, submitting],
+  );
+
+  const imagePreviewUrl = React.useMemo(() => {
+    if (!file || !file.type.startsWith("image/")) return null;
+    return URL.createObjectURL(file);
+  }, [file]);
+
+  React.useEffect(() => {
+    return () => {
+      if (imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl);
+      }
+    };
+  }, [imagePreviewUrl]);
 
   function resetForm() {
     setVendorId("");
     setComment("");
     setFile(null);
+    setIsDragActive(false);
     setErrors({});
 
     // Clear the native file input so the same file can be re-selected
@@ -97,6 +143,22 @@ export function NewSplitModal({
     try {
       if (!file) {
         setErrors((prev) => ({ ...prev, file: "Please upload a file" }));
+        return;
+      }
+
+      const allowedTypes = ["image/jpeg", "image/png"];
+      const allowedExtensions = ["jpg", "jpeg", "png"];
+      const fileExtension = getFileExtension(file.name);
+
+      if (
+        !allowedTypes.includes(file.type) ||
+        !allowedExtensions.includes(fileExtension)
+      ) {
+        setErrors((prev) => ({
+          ...prev,
+          file: "Only JPG and PNG images are allowed.",
+        }));
+        setSubmitting(false);
         return;
       }
 
@@ -288,79 +350,79 @@ export function NewSplitModal({
                 </Label>
 
                 <div
-                  className={cn(
-                    "group relative overflow-hidden rounded-2xl border border-dashed transition-all",
-                    file
-                      ? "border-primary/50 bg-primary/5 shadow-sm"
-                      : "border-border/90 bg-background/70 hover:border-primary/50 hover:bg-accent/30",
-                  )}
+                  className={`relative overflow-hidden rounded-2xl border border-dashed transition-colors ${
+                    isDragActive
+                      ? "border-primary/70 bg-primary/5"
+                      : file
+                        ? "border-primary/30 bg-card/40"
+                        : "border-border/70 bg-card/20 hover:border-border"
+                  }`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
                 >
                   <Input
                     id="file"
                     type="file"
-                    accept="application/pdf,image/*"
+                    accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                     ref={fileInputRef}
                     disabled={submitting}
                     className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
                     onChange={(e) => {
                       const f = e.target.files?.[0] ?? null;
-                      setFile(f);
-                      setErrors((prev) => ({ ...prev, file: undefined }));
+                      handleSelectedFile(f);
                     }}
                   />
 
-                  <div
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-linear-to-b from-primary/8 to-transparent"
-                  />
-
-                  <div className="relative flex min-h-44 flex-col items-center justify-center px-5 py-8 text-center sm:min-h-48 sm:px-6">
-                    <div
-                      className={cn(
-                        "mb-4 flex size-14 items-center justify-center rounded-2xl border shadow-sm transition-transform",
-                        file
-                          ? "border-primary/30 bg-background text-primary"
-                          : "border-border/70 bg-background/90 text-foreground group-hover:scale-[1.03]",
-                      )}
-                    >
-                      {file ? (
-                        file.type === "application/pdf" ? (
-                          <FileText className="size-6" />
-                        ) : (
-                          <FileImage className="size-6" />
-                        )
+                  {file ? (
+                    <div className="flex items-center gap-3 p-3 sm:p-4">
+                      {imagePreviewUrl ? (
+                        <img
+                          src={imagePreviewUrl}
+                          alt="Selected file preview"
+                          className="h-16 w-16 shrink-0 rounded-lg border border-border/70 object-cover"
+                        />
                       ) : (
-                        <Upload className="size-6" />
+                        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-muted/40">
+                          <FileImage className="size-5 text-muted-foreground" />
+                        </div>
                       )}
-                    </div>
 
-                    {file ? (
-                      <div className="space-y-2">
-                        <p className="max-w-88 truncate text-sm font-semibold text-foreground sm:text-base">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-foreground">
                           {file.name}
                         </p>
-                        <p className="text-xs text-muted-foreground sm:text-sm">
-                          File selected. Click to replace it.
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          JPG or PNG image selected. Click or drop to replace.
+                        </p>
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          *Only one image supported for now. For multiple pages,
+                          create a new split.
                         </p>
                       </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <p className="text-sm font-semibold text-foreground sm:text-base">
-                          Upload or drag your master document here
-                        </p>
-                        <p className="text-xs text-muted-foreground sm:text-sm">
-                          Drop a PDF or image, or click to browse files
-                        </p>
-                        <div className="pt-2">
-                          <span className="inline-flex items-center rounded-full border border-border/70 bg-background/90 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-xs sm:text-xs">
-                            Supports PDF, PNG, JPG, and more
-                          </span>
-                        </div>
+                    </div>
+                  ) : (
+                    <div className="flex min-h-37 flex-col items-center justify-center px-4 py-5 text-center sm:min-h-40 sm:px-5 sm:py-6">
+                      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-border/70 bg-background/85 text-muted-foreground shadow-xs">
+                        <FolderUp className="size-5" />
                       </div>
-                    )}
-                  </div>
-                </div>
 
+                      <p className="text-sm font-semibold text-foreground sm:text-base">
+                        Drag and drop your image here
+                      </p>
+                      <p className="mt-1.5 text-xs text-muted-foreground sm:text-sm">
+                        Or click inside this box to browse
+                      </p>
+                      <p className="mt-3 text-[11px] text-muted-foreground">
+                        JPG or PNG only
+                      </p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        *Only one image supported for now. For multiple pages,
+                        create a new split.
+                      </p>
+                    </div>
+                  )}
+                </div>
                 {errors.file ? (
                   <p className="text-sm text-destructive">{errors.file}</p>
                 ) : null}

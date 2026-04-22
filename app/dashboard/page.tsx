@@ -26,7 +26,16 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase/db";
-import { ArrowRight, FilePlus, Package, Search } from "lucide-react";
+import {
+  ArrowRight,
+  Award,
+  FilePlus,
+  House,
+  Package,
+  Search,
+  Smile,
+  Zap,
+} from "lucide-react";
 
 type PoSearchResult = {
   id: string;
@@ -40,6 +49,27 @@ type PoSearchResult = {
   createdAtMs: number | null;
 };
 
+type DailyLeaderboard = {
+  dateKey: string;
+  topReceiverToday: string;
+  fastestScanner: string;
+  inAGreatMood: string;
+  wantsToGoHome: string;
+};
+
+const RECEIVING_TEAM_NAMES = [
+  "Ashley Helgerson",
+  "Dylan Koss",
+  "Mike Santacroche",
+  "Paul Nedden",
+  "Chris Roeske",
+  "Bryce Vogt",
+  "Brad Drobka",
+  "Bob Kurtz",
+];
+
+const DAILY_LEADERBOARD_STORAGE_KEY = "dashboard-daily-receiving-leaderboard";
+
 function getFirstName(name?: string | null) {
   if (!name) return "User";
   return name.trim().split(" ")[0];
@@ -51,6 +81,32 @@ function getGreeting() {
   if (hour < 12) return "Good morning";
   if (hour < 18) return "Good afternoon";
   return "Good evening";
+}
+
+function getTodayDateKey() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = `${now.getMonth() + 1}`.padStart(2, "0");
+  const day = `${now.getDate()}`.padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function buildDailyLeaderboard(dateKey: string): DailyLeaderboard {
+  const names = [...RECEIVING_TEAM_NAMES];
+
+  for (let i = names.length - 1; i > 0; i -= 1) {
+    const randomIndex = Math.floor(Math.random() * (i + 1));
+    [names[i], names[randomIndex]] = [names[randomIndex], names[i]];
+  }
+
+  return {
+    dateKey,
+    topReceiverToday: names[0] ?? "Receiving Legend",
+    fastestScanner: names[1] ?? names[0] ?? "Speed Demon",
+    inAGreatMood: names[2] ?? names[0] ?? "Sunshine",
+    wantsToGoHome: names[3] ?? names[0] ?? "Clock Watcher",
+  };
 }
 
 export default function DashboardPage() {
@@ -70,6 +126,8 @@ export default function DashboardPage() {
   const [isSearchingPo, setIsSearchingPo] = React.useState(false);
   const [isPoSearchOpen, setIsPoSearchOpen] = React.useState(false);
   const [activePoResultIndex, setActivePoResultIndex] = React.useState(0);
+  const [dailyLeaderboard, setDailyLeaderboard] =
+    React.useState<DailyLeaderboard | null>(null);
 
   React.useEffect(() => {
     if (!user?.uid) {
@@ -364,6 +422,44 @@ export default function DashboardPage() {
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, []);
 
+  React.useEffect(() => {
+    const dateKey = getTodayDateKey();
+
+    if (typeof window === "undefined") return;
+
+    try {
+      const storedValue = window.localStorage.getItem(
+        DAILY_LEADERBOARD_STORAGE_KEY,
+      );
+
+      if (storedValue) {
+        const parsedValue = JSON.parse(storedValue) as DailyLeaderboard;
+
+        if (parsedValue.dateKey === dateKey) {
+          setDailyLeaderboard(parsedValue);
+          return;
+        }
+      }
+    } catch (error) {
+      console.warn(
+        "Failed to read daily leaderboard from localStorage:",
+        error,
+      );
+    }
+
+    const nextLeaderboard = buildDailyLeaderboard(dateKey);
+    setDailyLeaderboard(nextLeaderboard);
+
+    try {
+      window.localStorage.setItem(
+        DAILY_LEADERBOARD_STORAGE_KEY,
+        JSON.stringify(nextLeaderboard),
+      );
+    } catch (error) {
+      console.warn("Failed to save daily leaderboard to localStorage:", error);
+    }
+  }, []);
+
   const totalSplits = (liveTotalSplits ?? userProfile?.stats?.totalSplits) || 0;
 
   const memberSinceLabel = userProfile?.createdAt
@@ -386,10 +482,10 @@ export default function DashboardPage() {
   return (
     <div className="px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6 sm:space-y-8">
-        <div className="relative overflow-hidden rounded-[calc(var(--radius)+8px)] border border-border/70 bg-linear-to-br from-background via-card to-secondary/60 p-5 shadow-sm sm:p-6">
+        <div className="relative overflow-hidden rounded-[calc(var(--radius)+8px)] border border-border/70 bg-linear-to-br from-card via-card to-secondary/80 p-5 shadow-sm sm:p-6">
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-linear-to-b from-accent/60 to-transparent"
+            className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-linear-to-b from-accent/40 to-transparent"
           />
           <div
             aria-hidden="true"
@@ -428,10 +524,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div
-          ref={poSearchContainerRef}
-          className="relative rounded-xl border border-border/70 bg-card/80 p-3 shadow-sm"
-        >
+        <div ref={poSearchContainerRef} className="relative">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -480,12 +573,12 @@ export default function DashboardPage() {
                 }
               }}
               placeholder="Search PO number (ex. F35236 or F35...)"
-              className="h-14 w-full rounded-lg border border-border/80 bg-background pl-10 pr-4 text-sm text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
+              className="h-14 w-full rounded-lg border border-border/80 bg-white/40 pl-10 pr-4 text-sm text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
             />
           </div>
 
           {normalizedPoSearch && isPoSearchOpen ? (
-            <div className="absolute left-3 right-3 top-[calc(100%-0.1rem)] z-20 overflow-hidden rounded-lg border border-border bg-popover shadow-md">
+            <div className="absolute left-0 right-0 top-[calc(100%-0.1rem)] z-20 overflow-hidden rounded-lg border border-border bg-popover shadow-md">
               {isSearchingPo ? (
                 <div className="px-4 py-3 text-sm text-muted-foreground">
                   Searching PO numbers...
@@ -536,38 +629,82 @@ export default function DashboardPage() {
               )}
             </div>
           ) : null}
-
-          <p className="mt-3 px-1 text-xs text-muted-foreground">
-            Search prefers fast prefix lookup, with a fallback scan across your
-            recent splits for older data.
-          </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card className="overflow-hidden rounded-[calc(var(--radius)+6px)] border-border/70 bg-linear-to-br from-card via-card to-accent/40 shadow-sm">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-1">
-                  <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-                    Total Splits
-                  </CardTitle>
-                  <CardDescription>
-                    Every document batch you&apos;ve submitted.
-                  </CardDescription>
-                </div>
-                <div className="rounded-2xl border border-border/80 bg-background/80 p-2.5 text-foreground shadow-sm backdrop-blur-sm">
-                  <Package className="h-5 w-5" />
-                </div>
+        <Card className="relative overflow-hidden rounded-[calc(var(--radius)+6px)] border-border/70 bg-linear-to-br from-card via-card to-primary/10 shadow-sm">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-10 top-0 h-28 w-28 rounded-full bg-primary/10 blur-3xl"
+          />
+          <CardHeader className="pb-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                  Daily Leaderboard
+                </CardTitle>
+                <CardDescription>
+                  Today&apos;s totally official receiving team awards.
+                </CardDescription>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-                {totalSplits}
-              </p>
-            </CardContent>
-          </Card>
+              <div className="rounded-2xl border border-border/80 bg-background/80 p-2.5 text-foreground shadow-sm backdrop-blur-sm">
+                <Award className="h-5 w-5" />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-xl border border-amber-500/20 bg-linear-to-br from-amber-500/10 via-background/80 to-background/70 p-4 shadow-sm">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full border border-amber-500/20 bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                  <Award className="h-5 w-5" />
+                </div>
+                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  Top Receiver Today
+                </p>
+                <p className="mt-2 text-base font-semibold text-foreground">
+                  {dailyLeaderboard?.topReceiverToday ?? "Loading..."}
+                </p>
+              </div>
 
-          <Card className="overflow-hidden rounded-[calc(var(--radius)+6px)] border-border/70 bg-linear-to-br from-card via-card to-accent/40 shadow-sm transition-shadow hover:shadow-md">
+              <div className="rounded-xl border border-sky-500/20 bg-linear-to-br from-sky-500/10 via-background/80 to-background/70 p-4 shadow-sm">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full border border-sky-500/20 bg-sky-500/15 text-sky-600 dark:text-sky-400">
+                  <Zap className="h-5 w-5" />
+                </div>
+                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  Fastest Scanner
+                </p>
+                <p className="mt-2 text-base font-semibold text-foreground">
+                  {dailyLeaderboard?.fastestScanner ?? "Loading..."}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-emerald-500/20 bg-linear-to-br from-emerald-500/10 via-background/80 to-background/70 p-4 shadow-sm">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full border border-emerald-500/20 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                  <Smile className="h-5 w-5" />
+                </div>
+                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  In a Great Mood!
+                </p>
+                <p className="mt-2 text-base font-semibold text-foreground">
+                  {dailyLeaderboard?.inAGreatMood ?? "Loading..."}
+                </p>
+              </div>
+              <div className="rounded-xl border border-rose-500/20 bg-linear-to-br from-rose-500/10 via-background/80 to-background/70 p-3 shadow-sm">
+                <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-full border border-rose-500/20 bg-rose-500/15 text-rose-600 dark:text-rose-400">
+                  <House className="h-4 w-4" />
+                </div>
+                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                  Wants to Go Home
+                </p>
+                <p className="mt-1.5 text-sm font-semibold text-foreground sm:text-base">
+                  {dailyLeaderboard?.wantsToGoHome ?? "Loading..."}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Card className="overflow-hidden rounded-[calc(var(--radius)+6px)] border-border/70 bg-linear-to-br from-card via-card to-accent/40 shadow-sm transition-shadow hover:shadow-md lg:col-span-2">
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-1">
@@ -625,6 +762,28 @@ export default function DashboardPage() {
                   }
                 />
               )}
+            </CardContent>
+          </Card>
+          <Card className="overflow-hidden rounded-[calc(var(--radius)+6px)] border-border/70 bg-linear-to-br from-card via-card to-accent/40 shadow-sm lg:col-span-1">
+            <CardHeader className="pb-3">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1">
+                  <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                    Total Splits
+                  </CardTitle>
+                  <CardDescription>
+                    Every document batch you&apos;ve submitted.
+                  </CardDescription>
+                </div>
+                <div className="rounded-2xl border border-border/80 bg-background/80 p-2.5 text-foreground shadow-sm backdrop-blur-sm">
+                  <Package className="h-5 w-5" />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                {totalSplits}
+              </p>
             </CardContent>
           </Card>
         </div>
