@@ -203,7 +203,7 @@ export default function DashboardPage() {
   const poSearchContainerRef = React.useRef<HTMLDivElement | null>(null);
 
   const normalizedPoSearch = poSearch.trim().toUpperCase();
-  const debouncedPoSearch = React.useDeferredValue(normalizedPoSearch);
+  const [debouncedPoSearch, setDebouncedPoSearch] = React.useState("");
 
   const formatPoSearchDate = React.useCallback((value?: Date | null) => {
     if (!value) return null;
@@ -214,6 +214,14 @@ export default function DashboardPage() {
       year: "numeric",
     }).format(value);
   }, []);
+
+  React.useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setDebouncedPoSearch(normalizedPoSearch);
+    }, 250);
+
+    return () => window.clearTimeout(timeout);
+  }, [normalizedPoSearch]);
 
   const mapSubSplitResult = React.useCallback(
     (
@@ -253,7 +261,7 @@ export default function DashboardPage() {
   React.useEffect(() => {
     const userId = user?.uid;
 
-    if (!userId || !debouncedPoSearch) {
+    if (!userId || debouncedPoSearch.length < 3) {
       setPoResults([]);
       setIsSearchingPo(false);
       setActivePoResultIndex(0);
@@ -266,123 +274,43 @@ export default function DashboardPage() {
       setIsSearchingPo(true);
 
       try {
-        const prefixResults = await (async () => {
-          try {
-            const prefixQuery = query(
-              collectionGroup(db, "subSplits"),
-              where("splitCreatedBy", "==", userId),
-              where("poNumberNormalized", ">=", debouncedPoSearch),
-              where("poNumberNormalized", "<=", `${debouncedPoSearch}\uf8ff`),
-              orderBy("poNumberNormalized"),
-              orderBy("createdAt", "desc"),
-              limit(8),
-            );
-
-            const prefixSnapshot = await getDocs(prefixQuery);
-
-            return prefixSnapshot.docs.map((doc) => {
-              const splitId = doc.ref.parent.parent?.id;
-              if (!splitId) return null;
-              return mapSubSplitResult(splitId, doc, debouncedPoSearch);
-            });
-          } catch (error) {
-            console.warn(
-              "Prefix PO search unavailable, using recent-splits fallback:",
-              error,
-            );
-            return [];
-          }
-        })();
-
-        const usablePrefixResults = prefixResults.filter(
-          (result): result is PoSearchResult => Boolean(result),
+        const prefixQuery = query(
+          collectionGroup(db, "subSplits"),
+          where("splitCreatedBy", "==", userId),
+          where("poNumberNormalized", ">=", debouncedPoSearch),
+          where("poNumberNormalized", "<=", `${debouncedPoSearch}\uf8ff`),
+          orderBy("poNumberNormalized"),
+          limit(8),
         );
 
-        if (usablePrefixResults.length > 0) {
-          const dedupedPrefixResults = Array.from(
-            new Map(
-              usablePrefixResults.map((result) => [
-                `${result.splitId}:${result.id}`,
-                result,
-              ]),
-            ).values(),
-          )
-            .sort((a, b) => {
-              const poCompare = a.poNumberNormalized.localeCompare(
-                b.poNumberNormalized,
-              );
-              if (poCompare !== 0) return poCompare;
-              return (b.createdAtMs ?? 0) - (a.createdAtMs ?? 0);
-            })
-            .slice(0, 6);
+        const snapshot = await getDocs(prefixQuery);
 
-          if (!isCancelled) {
-            setPoResults(dedupedPrefixResults);
-            setActivePoResultIndex(0);
-            setIsSearchingPo(false);
-          }
-          return;
-        }
+        if (isCancelled) return;
 
-        const ownedSplitsQuery = query(
-          collection(db, "splits"),
-          where("createdBy", "==", userId),
-          orderBy("createdAt", "desc"),
-          limit(25),
-        );
-
-        const ownedSplitsSnapshot = await getDocs(ownedSplitsQuery);
-
-        if (ownedSplitsSnapshot.empty) {
-          if (!isCancelled) {
-            setPoResults([]);
-            setActivePoResultIndex(0);
-            setIsSearchingPo(false);
-          }
-          return;
-        }
-
-        const fallbackResults = await Promise.all(
-          ownedSplitsSnapshot.docs.map(async (splitDoc) => {
-            const subSplitsQuery = query(
-              collection(db, "splits", splitDoc.id, "subSplits"),
-              orderBy("createdAt", "desc"),
-              limit(20),
-            );
-
-            const subSnapshot = await getDocs(subSplitsQuery);
-
-            return subSnapshot.docs
-              .map((doc) =>
-                mapSubSplitResult(splitDoc.id, doc, debouncedPoSearch),
-              )
-              .filter((result) =>
-                result.poNumberNormalized.startsWith(debouncedPoSearch),
-              );
-          }),
-        );
-
-        const flattenedResults = Array.from(
+        const dedupedPrefixResults = Array.from(
           new Map(
-            fallbackResults
-              .flat()
+            snapshot.docs
+              .map((doc) => {
+                const splitId = doc.ref.parent.parent?.id;
+                if (!splitId) return null;
+                return mapSubSplitResult(splitId, doc, debouncedPoSearch);
+              })
+              .filter((result): result is PoSearchResult => Boolean(result))
               .map((result) => [`${result.splitId}:${result.id}`, result]),
           ).values(),
         )
           .sort((a, b) => {
-            const prefixCompare = a.poNumberNormalized.localeCompare(
+            const poCompare = a.poNumberNormalized.localeCompare(
               b.poNumberNormalized,
             );
-            if (prefixCompare !== 0) return prefixCompare;
+            if (poCompare !== 0) return poCompare;
             return (b.createdAtMs ?? 0) - (a.createdAtMs ?? 0);
           })
           .slice(0, 6);
 
-        if (!isCancelled) {
-          setPoResults(flattenedResults);
-          setActivePoResultIndex(0);
-          setIsSearchingPo(false);
-        }
+        setPoResults(dedupedPrefixResults);
+        setActivePoResultIndex(0);
+        setIsSearchingPo(false);
       } catch (error) {
         console.error("Failed to search PO subSplits:", error);
         if (!isCancelled) {
@@ -482,49 +410,7 @@ export default function DashboardPage() {
   return (
     <div className="px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6 sm:space-y-8">
-        <div className="relative overflow-hidden rounded-[calc(var(--radius)+8px)] border border-border/70 bg-linear-to-br from-card via-card to-secondary/80 p-5 shadow-sm sm:p-6">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-linear-to-b from-accent/40 to-transparent"
-          />
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -right-16 top-8 h-40 w-40 rounded-full bg-primary/8 blur-3xl"
-          />
-          <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="space-y-3">
-              <div>
-                <h1 className="mb-2 font-serif text-3xl leading-tight tracking-tight text-foreground sm:text-4xl">
-                  {getGreeting()},{" "}
-                  {getFirstName(userProfile?.displayName || user?.displayName)}!
-                </h1>
-                {memberSinceLabel ? (
-                  <p className="pl-1 text-xs text-muted-foreground sm:text-sm">
-                    Make it a great day!
-                  </p>
-                ) : null}
-              </div>
-            </div>
-
-            <NewSplitModal
-              vendors={[
-                { id: "SHAW", name: "SHAW" },
-                { id: "test vendor", name: "test vendor" },
-              ]}
-              trigger={
-                <Button
-                  size="lg"
-                  className="h-10 w-full cursor-pointer rounded-md shadow-sm sm:w-auto"
-                >
-                  <FilePlus className="mr-2 h-5 w-5" />
-                  New Split
-                </Button>
-              }
-            />
-          </div>
-        </div>
-
-        <div ref={poSearchContainerRef} className="relative">
+        <div ref={poSearchContainerRef} className="relative w-full max-w-3xl">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -532,12 +418,13 @@ export default function DashboardPage() {
               ref={poSearchInputRef}
               value={poSearch}
               onChange={(event) => {
-                setPoSearch(event.target.value.toUpperCase());
+                const nextValue = event.target.value.toUpperCase();
+                setPoSearch(nextValue);
                 setActivePoResultIndex(0);
-                setIsPoSearchOpen(true);
+                setIsPoSearchOpen(nextValue.trim().length >= 3);
               }}
               onFocus={() => {
-                if (normalizedPoSearch) {
+                if (normalizedPoSearch.length >= 3) {
                   setIsPoSearchOpen(true);
                 }
               }}
@@ -572,13 +459,13 @@ export default function DashboardPage() {
                   poSearchInputRef.current?.blur();
                 }
               }}
-              placeholder="Search PO number (ex. F35236 or F35...)"
-              className="h-14 w-full rounded-lg border border-border/80 bg-white/40 pl-10 pr-4 text-sm text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
+              placeholder="Search PO number (type at least 3 characters, ex. F54...)"
+              className="h-12 w-full rounded-lg border border-border/80 bg-background/80 pl-10 pr-4 text-sm text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
             />
           </div>
 
           {normalizedPoSearch && isPoSearchOpen ? (
-            <div className="absolute left-0 right-0 top-[calc(100%-0.1rem)] z-20 overflow-hidden rounded-lg border border-border bg-popover shadow-md">
+            <div className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-20 overflow-hidden rounded-lg border border-border bg-popover shadow-md">
               {isSearchingPo ? (
                 <div className="px-4 py-3 text-sm text-muted-foreground">
                   Searching PO numbers...
@@ -622,13 +509,69 @@ export default function DashboardPage() {
                     </button>
                   ))}
                 </div>
+              ) : normalizedPoSearch.length < 3 ? (
+                <div className="px-4 py-3 text-sm text-muted-foreground">
+                  Type at least 3 characters to search.
+                </div>
               ) : (
                 <div className="px-4 py-3 text-sm text-muted-foreground">
-                  No matching PO found. Try a broader prefix like F35.
+                  No matching PO found. Try a broader prefix like F54.
                 </div>
               )}
             </div>
           ) : null}
+        </div>
+
+        <div className="relative overflow-hidden rounded-[calc(var(--radius)+8px)] border border-border/70 bg-linear-to-br from-card via-card to-secondary/80 p-5 shadow-sm sm:p-6">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-linear-to-b from-accent/40 to-transparent"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-16 top-8 h-40 w-40 rounded-full bg-primary/8 blur-3xl"
+          />
+          <div className="relative space-y-4">
+            <div className="min-w-0 space-y-3">
+              <div>
+                <h1 className="mb-2 font-serif text-3xl leading-tight tracking-tight text-foreground sm:text-4xl">
+                  {getGreeting()},{" "}
+                  {getFirstName(userProfile?.displayName || user?.displayName)}!
+                </h1>
+                {memberSinceLabel ? (
+                  <p className="pl-1 text-xs text-muted-foreground sm:text-sm">
+                    Make it a great day!
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-background/60 p-3 shadow-sm backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  Latest Status
+                </p>
+                <p className="text-sm font-medium text-foreground">
+                  {mostRecentSplit?.status || "No splits yet"}
+                </p>
+              </div>
+              <NewSplitModal
+                vendors={[
+                  { id: "SHAW", name: "SHAW" },
+                  { id: "test vendor", name: "test vendor" },
+                ]}
+                trigger={
+                  <Button
+                    size="lg"
+                    className="h-10 w-full cursor-pointer rounded-md shadow-sm sm:w-auto"
+                  >
+                    <FilePlus className="mr-2 h-5 w-5" />
+                    New Split
+                  </Button>
+                }
+              />
+            </div>
+          </div>
         </div>
 
         <Card className="relative overflow-hidden rounded-[calc(var(--radius)+6px)] border-border/70 bg-linear-to-br from-card via-card to-primary/10 shadow-sm">
@@ -636,7 +579,7 @@ export default function DashboardPage() {
             aria-hidden="true"
             className="pointer-events-none absolute -right-10 top-0 h-28 w-28 rounded-full bg-primary/10 blur-3xl"
           />
-          <CardHeader className="pb-4">
+          <CardHeader className="pb-1">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-1">
                 <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
