@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { NewSplitModal } from "@/components/NewSplitModal";
@@ -27,7 +26,6 @@ import {
 
 import { db } from "@/lib/firebase/db";
 import {
-  ArrowRight,
   Award,
   FilePlus,
   House,
@@ -408,130 +406,10 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl space-y-6 sm:space-y-8">
-        <div ref={poSearchContainerRef} className="relative w-full max-w-3xl">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              ref={poSearchInputRef}
-              value={poSearch}
-              onChange={(event) => {
-                const nextValue = event.target.value.toUpperCase();
-                setPoSearch(nextValue);
-                setActivePoResultIndex(0);
-                setIsPoSearchOpen(nextValue.trim().length >= 3);
-              }}
-              onFocus={() => {
-                if (normalizedPoSearch.length >= 3) {
-                  setIsPoSearchOpen(true);
-                }
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "ArrowDown") {
-                  event.preventDefault();
-                  if (!isPoSearchOpen && poResults.length > 0) {
-                    setIsPoSearchOpen(true);
-                    return;
-                  }
-                  if (poResults.length === 0) return;
-                  setActivePoResultIndex((currentIndex) =>
-                    currentIndex >= poResults.length - 1 ? 0 : currentIndex + 1,
-                  );
-                }
-
-                if (event.key === "ArrowUp") {
-                  event.preventDefault();
-                  if (poResults.length === 0) return;
-                  setActivePoResultIndex((currentIndex) =>
-                    currentIndex <= 0 ? poResults.length - 1 : currentIndex - 1,
-                  );
-                }
-
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  handlePoSearchSubmit(activePoResultIndex);
-                }
-
-                if (event.key === "Escape") {
-                  setIsPoSearchOpen(false);
-                  poSearchInputRef.current?.blur();
-                }
-              }}
-              placeholder="Search PO number (type at least 3 characters, ex. F54...)"
-              className="h-12 w-full rounded-lg border border-border/80 bg-background/80 pl-10 pr-4 text-sm text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
-            />
-          </div>
-
-          {normalizedPoSearch && isPoSearchOpen ? (
-            <div className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-20 overflow-hidden rounded-lg border border-border bg-popover shadow-md">
-              {isSearchingPo ? (
-                <div className="px-4 py-3 text-sm text-muted-foreground">
-                  Searching PO numbers...
-                </div>
-              ) : poResults.length > 0 ? (
-                <div className="py-1">
-                  {poResults.map((result, index) => (
-                    <button
-                      key={result.id}
-                      type="button"
-                      onMouseEnter={() => setActivePoResultIndex(index)}
-                      onClick={() => {
-                        setActivePoResultIndex(index);
-                        handlePoSearchSubmit(index);
-                      }}
-                      className={`flex w-full cursor-pointer items-start justify-between gap-4 px-4 py-3 text-left transition-colors ${
-                        index === activePoResultIndex
-                          ? "bg-accent/60"
-                          : "hover:bg-accent/50"
-                      }`}
-                    >
-                      <div className="min-w-0 space-y-1">
-                        <p className="truncate text-sm font-semibold text-foreground">
-                          {result.poNumber}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Order {result.order ?? "—"} • {result.rowCount ?? "—"}{" "}
-                          rows
-                        </p>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                          {result.status ?? "unknown"}
-                        </p>
-                        {result.createdAtLabel ? (
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {result.createdAtLabel}
-                          </p>
-                        ) : null}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              ) : normalizedPoSearch.length < 3 ? (
-                <div className="px-4 py-3 text-sm text-muted-foreground">
-                  Type at least 3 characters to search.
-                </div>
-              ) : (
-                <div className="px-4 py-3 text-sm text-muted-foreground">
-                  No matching PO found. Try a broader prefix like F54.
-                </div>
-              )}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="relative overflow-hidden rounded-[calc(var(--radius)+8px)] border border-border/70 bg-linear-to-br from-card via-card to-secondary/80 p-5 shadow-sm sm:p-6">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-linear-to-b from-accent/40 to-transparent"
-          />
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -right-16 top-8 h-40 w-40 rounded-full bg-primary/8 blur-3xl"
-          />
-          <div className="relative space-y-4">
+    <div className="min-w-0 overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl min-w-0 space-y-6 sm:space-y-8">
+        <div className="relative z-50 min-w-0 overflow-visible">
+          <div className="relative min-w-0 space-y-4 overflow-visible">
             <div className="min-w-0 space-y-3">
               <div>
                 <h1 className="mb-2 font-serif text-3xl leading-tight tracking-tight text-foreground sm:text-4xl">
@@ -546,15 +424,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-background/60 p-3 shadow-sm backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
-              <div className="space-y-1">
-                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                  Latest Status
-                </p>
-                <p className="text-sm font-medium text-foreground">
-                  {mostRecentSplit?.status || "No splits yet"}
-                </p>
-              </div>
+            <div className="relative z-30 mt-8 mb-6 flex flex-col gap-3 overflow-visible sm:flex-row sm:items-center">
               <NewSplitModal
                 vendors={[
                   { id: "SHAW", name: "SHAW" },
@@ -566,15 +436,137 @@ export default function DashboardPage() {
                     className="h-10 w-full cursor-pointer rounded-md shadow-sm sm:w-auto"
                   >
                     <FilePlus className="mr-2 h-5 w-5" />
-                    New Split
+                    Create Split
                   </Button>
                 }
               />
+
+              {/* PO Search */}
+              <div
+                ref={poSearchContainerRef}
+                className="relative z-40 min-w-0 w-full sm:max-w-md lg:max-w-xl"
+              >
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    ref={poSearchInputRef}
+                    value={poSearch}
+                    onChange={(event) => {
+                      const nextValue = event.target.value.toUpperCase();
+                      setPoSearch(nextValue);
+                      setActivePoResultIndex(0);
+                      setIsPoSearchOpen(nextValue.trim().length >= 3);
+                    }}
+                    onFocus={() => {
+                      if (normalizedPoSearch.length >= 3) {
+                        setIsPoSearchOpen(true);
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "ArrowDown") {
+                        event.preventDefault();
+                        if (!isPoSearchOpen && poResults.length > 0) {
+                          setIsPoSearchOpen(true);
+                          return;
+                        }
+                        if (poResults.length === 0) return;
+                        setActivePoResultIndex((currentIndex) =>
+                          currentIndex >= poResults.length - 1
+                            ? 0
+                            : currentIndex + 1,
+                        );
+                      }
+
+                      if (event.key === "ArrowUp") {
+                        event.preventDefault();
+                        if (poResults.length === 0) return;
+                        setActivePoResultIndex((currentIndex) =>
+                          currentIndex <= 0
+                            ? poResults.length - 1
+                            : currentIndex - 1,
+                        );
+                      }
+
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        handlePoSearchSubmit(activePoResultIndex);
+                      }
+
+                      if (event.key === "Escape") {
+                        setIsPoSearchOpen(false);
+                        poSearchInputRef.current?.blur();
+                      }
+                    }}
+                    placeholder="Search recent PO numbers..."
+                    className="h-11 w-full rounded-lg border border-border/80 bg-white/50 pl-10 pr-4 text-sm text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
+                  />
+                </div>
+
+                {normalizedPoSearch && isPoSearchOpen ? (
+                  <div className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-50 overflow-hidden rounded-lg border border-border bg-popover shadow-md">
+                    {isSearchingPo ? (
+                      <div className="px-4 py-3 text-sm text-muted-foreground">
+                        Searching PO numbers...
+                      </div>
+                    ) : poResults.length > 0 ? (
+                      <div className="py-1">
+                        {poResults.map((result, index) => (
+                          <button
+                            key={result.id}
+                            type="button"
+                            onMouseEnter={() => setActivePoResultIndex(index)}
+                            onClick={() => {
+                              setActivePoResultIndex(index);
+                              handlePoSearchSubmit(index);
+                            }}
+                            className={`flex w-full cursor-pointer items-start justify-between gap-4 px-4 py-3 text-left transition-colors ${
+                              index === activePoResultIndex
+                                ? "bg-accent/60"
+                                : "hover:bg-accent/50"
+                            }`}
+                          >
+                            <div className="min-w-0 space-y-1">
+                              <p className="truncate text-sm font-semibold text-foreground">
+                                {result.poNumber}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Order {result.order ?? "—"} •{" "}
+                                {result.rowCount ?? "—"} rows
+                              </p>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                {result.status ?? "unknown"}
+                              </p>
+                              {result.createdAtLabel ? (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {result.createdAtLabel}
+                                </p>
+                              ) : null}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : normalizedPoSearch.length < 3 ? (
+                      <div className="px-4 py-3 text-sm text-muted-foreground">
+                        Type at least 3 characters to search.
+                      </div>
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-muted-foreground">
+                        No matching PO found. Try a broader prefix like F54.
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
 
-        <Card className="relative overflow-hidden rounded-[calc(var(--radius)+6px)] border-border/70 bg-linear-to-br from-card via-card to-primary/10 shadow-sm">
+        {/* Daily Leaderboard Card */}
+
+        <Card className="relative z-0 overflow-hidden rounded-[calc(var(--radius)+6px)] border-border/70 bg-linear-to-br from-card via-card to-primary/10 shadow-sm">
           <div
             aria-hidden="true"
             className="pointer-events-none absolute -right-10 top-0 h-28 w-28 rounded-full bg-primary/10 blur-3xl"
@@ -636,7 +628,7 @@ export default function DashboardPage() {
                   <House className="h-4 w-4" />
                 </div>
                 <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                  Wants to Go Home
+                  Wants to buy lunch!
                 </p>
                 <p className="mt-1.5 text-sm font-semibold text-foreground sm:text-base">
                   {dailyLeaderboard?.wantsToGoHome ?? "Loading..."}
@@ -646,67 +638,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <div className="grid gap-4 lg:grid-cols-3">
-          <Card className="overflow-hidden rounded-[calc(var(--radius)+6px)] border-border/70 bg-linear-to-br from-card via-card to-accent/40 shadow-sm transition-shadow hover:shadow-md lg:col-span-2">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-1">
-                  <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-                    Most Recent Split
-                  </CardTitle>
-                  <CardDescription>
-                    Open your latest split and review the generated pages.
-                  </CardDescription>
-                </div>
-                <div className="rounded-2xl border border-border/80 bg-background/80 p-2.5 text-foreground shadow-sm backdrop-blur-sm">
-                  <ArrowRight className="h-5 w-5" />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {mostRecentSplit ? (
-                <Link
-                  href={`/splitter/${mostRecentSplit.id}`}
-                  className="group block cursor-pointer rounded-lg border border-border/70 bg-background/70 p-4 transition-all duration-200 hover:scale-[1.02] hover:bg-accent/40"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-1">
-                      <p className="truncate text-base font-semibold text-foreground">
-                        {mostRecentSplit.fileName || "Untitled split"}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {mostRecentSplit.vendorId || "Unknown vendor"}
-                      </p>
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Status: {mostRecentSplit.status || "unknown"}
-                      </p>
-                    </div>
-                    <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-                  </div>
-                </Link>
-              ) : (
-                <NewSplitModal
-                  vendors={[
-                    { id: "SHAW", name: "SHAW" },
-                    { id: "test vendor", name: "test vendor" },
-                  ]}
-                  trigger={
-                    <button
-                      type="button"
-                      className="group block w-full cursor-pointer rounded-lg border border-dashed border-border/70 bg-background/50 p-4 text-left text-sm text-muted-foreground transition-all duration-200 hover:scale-[1.02] hover:border-border hover:bg-accent/40"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <p>
-                          No splits yet. Create your first split to see it here.
-                        </p>
-                        <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-                      </div>
-                    </button>
-                  }
-                />
-              )}
-            </CardContent>
-          </Card>
+        <div className="grid min-w-0 gap-4 lg:grid-cols-3">
           <Card className="overflow-hidden rounded-[calc(var(--radius)+6px)] border-border/70 bg-linear-to-br from-card via-card to-accent/40 shadow-sm lg:col-span-1">
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between gap-4">

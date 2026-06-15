@@ -38,10 +38,9 @@ const features = [
 ];
 
 const nextSteps = [
-  "Support Braun&apos;s and other bill of lading formats",
-  "Smarter row detection",
-  "PDF export",
-  "Improved batch printing",
+  "SFI BOL support",
+  "Multi page document support",
+  "Additional vendor formats",
 ];
 
 const AboutPage: React.FC = () => {
@@ -82,21 +81,13 @@ const AboutPage: React.FC = () => {
             </p>
 
             <p className="mt-4 max-w-2xl leading-relaxed text-muted-foreground">
-              Built for the Kewaskum receiving team, this tool reflects Drexel’s{" "}
+              Built for the Kewaskum receiving team, this tool reflects Drexel's{" "}
               <span className="font-semibold text-foreground">
                 2-second lean
               </span>{" "}
               mindset by turning manual PO splitting into a faster, simpler
               workflow.
             </p>
-            <div className="mt-6">
-              <a
-                href="/"
-                className="inline-flex items-center rounded-md bg-blue-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 transition"
-              >
-                Try it now
-              </a>
-            </div>
           </div>
 
           <div className="flex justify-start lg:justify-end">
@@ -118,14 +109,14 @@ const AboutPage: React.FC = () => {
           </h2>
           <p className="mt-3 leading-relaxed text-muted-foreground">
             Printing copies of vendor paperwork, manually scribbling out POs
-            that don’t belong to each job, then scanning everything into Central
+            that don't belong to each job, then scanning everything into Central
             Receiving.
           </p>
           <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
             <li>
               Spending{" "}
               <span className="font-semibold text-foreground">
-                10–20 minutes
+                10 - 20 minutes
               </span>{" "}
               coloring out POs with a sharpie
             </li>
@@ -203,7 +194,7 @@ const AboutPage: React.FC = () => {
         <div className="rounded-2xl border bg-card p-6 shadow-sm space-y-3">
           <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-foreground">
             <Rocket className="h-5 w-5 text-muted-foreground" />
-            What&apos;s Next
+            What's Next
           </h2>
           <p className="leading-relaxed text-muted-foreground">
             Currently built for SHAW paperwork, with more vendor support

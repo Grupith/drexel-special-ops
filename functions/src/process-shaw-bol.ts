@@ -58,6 +58,7 @@ const CONFIG = {
   groupBottomPadding: 16,
   jpegQuality: 92,
   uploadProgressMaxPercent: 95,
+  landscapeRotationDegrees: 90,
 };
 
 // ===============================================
@@ -511,17 +512,35 @@ export const processShawBol = functions.storage.onObjectFinalized(
       await deleteExistingSubSplits(splitId, bucketName);
 
       await bucket.file(filePath).download({ destination: tempFile });
-      const imageBuffer = await fs.readFile(tempFile);
+      const originalImageBuffer = await fs.readFile(tempFile);
 
-      const metadata = await sharp(imageBuffer).metadata();
+      // Normalize phone/scanner uploads before OCR/cropping.
+      // Sharp's rotate() applies EXIF orientation first. If a SHAW page is still
+      // landscape afterward, rotate it into portrait so Vision reads rows top-down.
+      let imageBuffer = await sharp(originalImageBuffer).rotate().toBuffer();
+      let metadata = await sharp(imageBuffer).metadata();
       if (!metadata.width || !metadata.height) {
         throw new Error("Could not determine image dimensions.");
+      }
+
+      if (metadata.width > metadata.height) {
+        console.log(
+          `Landscape SHAW image detected (${metadata.width}x${metadata.height}); rotating ${CONFIG.landscapeRotationDegrees} degrees before OCR.`,
+        );
+        imageBuffer = await sharp(imageBuffer)
+          .rotate(CONFIG.landscapeRotationDegrees)
+          .toBuffer();
+        metadata = await sharp(imageBuffer).metadata();
+      }
+
+      if (!metadata.width || !metadata.height) {
+        throw new Error("Could not determine normalized image dimensions.");
       }
 
       const imageWidth = metadata.width;
       const imageHeight = metadata.height;
 
-      console.log(`Image dimensions: ${imageWidth}x${imageHeight}`);
+      console.log(`Normalized image dimensions: ${imageWidth}x${imageHeight}`);
 
       await splitRef.update(
         buildStatusPatch("splitting", {
