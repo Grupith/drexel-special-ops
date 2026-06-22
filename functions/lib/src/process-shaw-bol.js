@@ -78,6 +78,7 @@ const CONFIG = {
     maxRowBoxHeight: 420,
     rowBorderPadding: 2,
     bottomBorderExtraPadding: 4,
+    outputHeaderBodyGap: 3,
     nextRowSafetyGap: 0,
     rowLineYMargin: 10,
     rowOrderMatchXMax: 520,
@@ -732,7 +733,7 @@ exports.processShawBol = functions.storage.onObjectFinalized({ region: "us-centr
             }
             const groupHeight = Math.max(1, groupBottom - groupTop);
             const bodyExtractArea = clampExtractArea(imageWidth, imageHeight, groupTop, groupHeight);
-            const bodyTop = safeHeaderHeight;
+            const bodyTop = safeHeaderHeight + CONFIG.outputHeaderBodyGap;
             console.log(`Generating sub-split for PO ${poNumber}: headerHeight=${headerHeight}, safeHeaderHeight=${safeHeaderHeight}, bodyTop=${bodyTop}, groupTop=${bodyExtractArea.top}, height=${bodyExtractArea.height}, imageHeight=${imageHeight}, firstRowTop=${firstRowTop}, lastRowBottom=${lastRowBottom}, nextRowTop=${nextRow?.minY ?? "none"}`);
             const bodyBuffer = await (0, sharp_1.default)(imageBuffer)
                 .extract(bodyExtractArea)

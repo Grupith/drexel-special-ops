@@ -75,6 +75,7 @@ const CONFIG = {
   maxRowBoxHeight: 420,
   rowBorderPadding: 2,
   bottomBorderExtraPadding: 4,
+  outputHeaderBodyGap: 3,
   nextRowSafetyGap: 0,
   rowLineYMargin: 10,
   rowOrderMatchXMax: 520,
@@ -977,7 +978,7 @@ export const processShawBol = functions.storage.onObjectFinalized(
           groupHeight,
         );
 
-        const bodyTop = safeHeaderHeight;
+        const bodyTop = safeHeaderHeight + CONFIG.outputHeaderBodyGap;
 
         console.log(
           `Generating sub-split for PO ${poNumber}: headerHeight=${headerHeight}, safeHeaderHeight=${safeHeaderHeight}, bodyTop=${bodyTop}, groupTop=${bodyExtractArea.top}, height=${bodyExtractArea.height}, imageHeight=${imageHeight}, firstRowTop=${firstRowTop}, lastRowBottom=${lastRowBottom}, nextRowTop=${nextRow?.minY ?? "none"}`,
