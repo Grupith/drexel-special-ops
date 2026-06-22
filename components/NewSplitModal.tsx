@@ -33,9 +33,9 @@ import {
   FileText,
   FolderUp,
   Loader2,
-  NotebookPen,
   ScrollText,
   Store,
+  UserRound,
 } from "lucide-react";
 
 type VendorOption = { id: string; name: string };
@@ -57,9 +57,11 @@ function isPdfFile(file: File) {
 }
 
 export function NewSplitModal({
+  receiverNames,
   vendors,
   trigger,
 }: {
+  receiverNames: string[];
   vendors: VendorOption[];
   trigger?: React.ReactNode;
 }) {
@@ -78,9 +80,10 @@ export function NewSplitModal({
   );
 
   const [vendorId, setVendorId] = React.useState(defaultVendorId);
-  const [comment, setComment] = React.useState("");
+  const [receivedByName, setReceivedByName] = React.useState("");
   const [file, setFile] = React.useState<File | null>(null);
   const [errors, setErrors] = React.useState<{
+    receivedByName?: string;
     vendorId?: string;
     file?: string;
   }>({});
@@ -143,7 +146,7 @@ export function NewSplitModal({
 
   function resetForm() {
     setVendorId(defaultVendorId);
-    setComment("");
+    setReceivedByName("");
     setFile(null);
     setIsDragActive(false);
     setErrors({});
@@ -157,6 +160,7 @@ export function NewSplitModal({
   function validate() {
     const next: typeof errors = {};
     if (!vendorId) next.vendorId = "Select a vendor";
+    if (!receivedByName) next.receivedByName = "Select who received it";
     if (!file) next.file = "Please upload a file";
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -219,7 +223,7 @@ export function NewSplitModal({
         originalImagePath,
         originalImageUrl: "",
         fileName: file.name,
-        comment: comment.trim(),
+        receivedByName,
       });
 
       await uploadBytes(storageRef, file);
@@ -259,7 +263,7 @@ export function NewSplitModal({
       </DialogTrigger>
 
       <DialogContent
-        className="border-border/70 bg-linear-to-br from-background via-card to-secondary/50 p-0 shadow-xl sm:max-w-160"
+        className="border-border/80 bg-card p-0 shadow-xl sm:max-w-142"
         onPointerDownOutside={(e) => {
           if (submitting) e.preventDefault();
         }}
@@ -267,22 +271,17 @@ export function NewSplitModal({
           if (submitting) e.preventDefault();
         }}
       >
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-linear-to-b from-accent/70 to-transparent"
-        />
-
-        <DialogHeader className="relative shrink-0 gap-2 border-b border-border/60 bg-secondary/75 px-4 pt-4 pb-2 text-left sm:px-6 sm:pt-5 sm:pb-3">
-          <div className="flex items-align gap-3 sm:gap-4">
-            <div className="flex size-10 items-center justify-center rounded-xl border border-border/70 bg-background/85 text-foreground shadow-sm backdrop-blur-sm sm:size-12 sm:rounded-2xl">
-              <ScrollText className="size-4 sm:size-5" />
+        <DialogHeader className="shrink-0 gap-2 border-b border-border/70 px-4 py-4 text-left sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex size-9 items-center justify-center rounded-lg border border-border/80 bg-background text-muted-foreground">
+              <ScrollText className="size-4" />
             </div>
-            <div className="space-y-1">
-              <DialogTitle className="font-serif text-xl tracking-tight sm:text-xl">
+            <div>
+              <DialogTitle className="text-lg leading-tight font-semibold">
                 New split
               </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground sm:text-sm">
-                Upload a file and choose a vendor.
+              <DialogDescription className="mt-1 text-sm text-muted-foreground">
+                Choose the basics, then upload the document.
               </DialogDescription>
             </div>
           </div>
@@ -302,14 +301,12 @@ export function NewSplitModal({
               </div>
             </div>
           ) : null}
-          <div className="space-y-3 px-4 pt-2 pb-6 sm:px-6 sm:pt-3 sm:pb-4">
-            <div className="space-y-2 sm:space-y-2.5">
-              {/* Vendor Selection */}
-
-              <div className="space-y-2 sm:space-y-2.5 rounded-[calc(var(--radius)+6px)] bg-card/20 p-3 sm:p-4">
+          <div className="space-y-5 px-4 py-5 sm:px-6">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
                 <Label
                   htmlFor="vendor"
-                  className="flex items-center gap-2 text-[13px] font-medium sm:text-sm"
+                  className="flex items-center gap-2 text-sm font-medium"
                 >
                   <Store className="size-4 text-muted-foreground" />
                   Vendor
@@ -324,7 +321,7 @@ export function NewSplitModal({
                 >
                   <SelectTrigger
                     id="vendor"
-                    className="h-12 w-full cursor-pointer rounded-lg border-border/80 bg-background/80 px-3.5 text-sm shadow-xs backdrop-blur-sm"
+                    className="h-11 w-full cursor-pointer rounded-lg border-border/80 bg-background px-3 text-sm shadow-xs"
                   >
                     <SelectValue placeholder="Select a vendor" />
                   </SelectTrigger>
@@ -345,122 +342,135 @@ export function NewSplitModal({
                 ) : null}
               </div>
 
-              {/* Comment */}
-
-              <div className="space-y-2 sm:space-y-2.5 rounded-[calc(var(--radius)+6px)] p-3 sm:p-4">
+              <div className="space-y-2">
                 <Label
-                  htmlFor="comment"
-                  className="flex items-center gap-2 text-[13px] font-medium sm:text-sm"
+                  htmlFor="received-by"
+                  className="flex items-center gap-2 text-sm font-medium"
                 >
-                  <NotebookPen className="size-4 text-muted-foreground" />
-                  Comment (optional)
+                  <UserRound className="size-4 text-muted-foreground" />
+                  Received by
                 </Label>
-                <Input
-                  id="comment"
-                  placeholder="Any notes..."
-                  value={comment}
+                <Select
+                  value={receivedByName}
                   disabled={submitting}
-                  onChange={(e) => setComment(e.target.value)}
-                  className="h-12 w-full rounded-lg border-border/80 bg-background/80 px-3.5 text-sm shadow-xs backdrop-blur-sm"
-                />
-              </div>
-
-              {/* Master Document */}
-
-              <div className="space-y-2 sm:space-y-2.5 rounded-[calc(var(--radius)+6px)] p-3 sm:p-4">
-                <Label className="flex items-center gap-2 text-[13px] font-medium sm:text-sm">
-                  <FolderUp className="size-4 text-muted-foreground" />
-                  Upload Document
-                </Label>
-
-                <div
-                  className={`relative overflow-hidden rounded-2xl border border-dashed transition-colors ${
-                    isDragActive
-                      ? "border-primary/70 bg-primary/5"
-                      : file
-                        ? "border-primary/30 bg-card/40"
-                        : "border-border/70 bg-card/20 hover:border-border"
-                  }`}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
+                  onValueChange={(v) => {
+                    setReceivedByName(v);
+                    setErrors((prev) => ({
+                      ...prev,
+                      receivedByName: undefined,
+                    }));
+                  }}
                 >
-                  <Input
-                    id="file"
-                    type="file"
-                    accept={ACCEPTED_FILE_TYPES}
-                    ref={fileInputRef}
-                    disabled={submitting}
-                    className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0] ?? null;
-                      handleSelectedFile(f);
-                    }}
-                  />
-
-                  {file ? (
-                    <div className="flex items-center gap-3 p-3 sm:p-4">
-                      {imagePreviewUrl ? (
-                        <img
-                          src={imagePreviewUrl}
-                          alt="Selected file preview"
-                          className="h-16 w-16 shrink-0 rounded-lg border border-border/70 object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-muted/40">
-                          {isPdfFile(file) ? (
-                            <FileText className="size-5 text-muted-foreground" />
-                          ) : (
-                            <FileImage className="size-5 text-muted-foreground" />
-                          )}
-                        </div>
-                      )}
-
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-foreground">
-                          {file.name}
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {isPdfFile(file)
-                            ? "PDF selected. Click or drop to replace."
-                            : "Image selected. Click or drop to replace."}
-                        </p>
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          *Only one page is processed for now. For multiple
-                          pages, create a new split.
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex min-h-37 flex-col items-center justify-center px-4 py-5 text-center sm:min-h-40 sm:px-5 sm:py-6">
-                      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-border/70 bg-background/85 text-muted-foreground shadow-xs">
-                        <FolderUp className="size-5" />
-                      </div>
-
-                      <p className="text-sm font-semibold text-foreground sm:text-base">
-                        Drag and drop your file here
-                      </p>
-                      <p className="mt-1.5 text-xs text-muted-foreground sm:text-sm">
-                        Or click inside this box to browse
-                      </p>
-                      <p className="mt-3 text-[11px] text-muted-foreground">
-                        JPG, PNG, or PDF only
-                      </p>
-                      <p className="mt-1 text-[11px] text-muted-foreground">
-                        *Only one page is processed for now. For multiple pages,
-                        create a new split.
-                      </p>
-                    </div>
-                  )}
-                </div>
-                {errors.file ? (
-                  <p className="text-sm text-destructive">{errors.file}</p>
+                  <SelectTrigger
+                    id="received-by"
+                    className="h-11 w-full cursor-pointer rounded-lg border-border/80 bg-background px-3 text-sm shadow-xs"
+                  >
+                    <SelectValue placeholder="Select a receiver" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-lg border-border/80 bg-popover/95 shadow-lg backdrop-blur-md">
+                    {receiverNames.map((name) => (
+                      <SelectItem
+                        key={name}
+                        value={name}
+                        className="cursor-pointer rounded-lg"
+                      >
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.receivedByName ? (
+                  <p className="text-sm text-destructive">
+                    {errors.receivedByName}
+                  </p>
                 ) : null}
               </div>
             </div>
+
+            <div className="space-y-2.5">
+              <Label className="flex items-center gap-2 text-sm font-medium">
+                <FolderUp className="size-4 text-muted-foreground" />
+                Document
+              </Label>
+
+              <div
+                className={`relative overflow-hidden rounded-lg border border-dashed transition-colors ${
+                  isDragActive
+                    ? "border-primary/70 bg-primary/5"
+                    : file
+                      ? "border-primary/40 bg-background"
+                      : "border-border/80 bg-background hover:border-muted-foreground/45"
+                }`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                <Input
+                  id="file"
+                  type="file"
+                  accept={ACCEPTED_FILE_TYPES}
+                  ref={fileInputRef}
+                  disabled={submitting}
+                  className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null;
+                    handleSelectedFile(f);
+                  }}
+                />
+
+                {file ? (
+                  <div className="flex items-center gap-3 p-3">
+                    {imagePreviewUrl ? (
+                      <img
+                        src={imagePreviewUrl}
+                        alt="Selected file preview"
+                        className="size-14 shrink-0 rounded-md border border-border/70 object-cover"
+                      />
+                    ) : (
+                      <div className="flex size-14 shrink-0 items-center justify-center rounded-md border border-border/70 bg-muted/35">
+                        {isPdfFile(file) ? (
+                          <FileText className="size-5 text-muted-foreground" />
+                        ) : (
+                          <FileImage className="size-5 text-muted-foreground" />
+                        )}
+                      </div>
+                    )}
+
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {file.name}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Click or drop a file here to replace it.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex min-h-34 flex-col items-center justify-center px-4 py-5 text-center sm:min-h-36">
+                    <div className="mb-3 flex size-10 items-center justify-center rounded-lg border border-border/70 bg-card text-muted-foreground">
+                      <FolderUp className="size-5" />
+                    </div>
+
+                    <p className="text-sm font-medium text-foreground">
+                      Drop a file here or click to browse
+                    </p>
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      JPG, PNG, or PDF
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                <span>Only one file can be uploaded.</span>
+                <span>One page is processed per split.</span>
+              </div>
+              {errors.file ? (
+                <p className="text-sm text-destructive">{errors.file}</p>
+              ) : null}
+            </div>
           </div>
 
-          <DialogFooter className="grid grid-cols-2 gap-3 border-t border-border/60 px-4 py-4 sm:px-6 sm:py-4">
+          <DialogFooter className="grid grid-cols-2 gap-3 border-t border-border/70 bg-background/45 px-4 py-4 sm:px-6">
             <Button
               type="button"
               variant="outline"
@@ -469,14 +479,14 @@ export function NewSplitModal({
                 resetForm();
                 setOpen(false);
               }}
-              className="min-h-12 w-full cursor-pointer rounded-lg px-4 text-sm shadow-sm"
+              className="min-h-11 w-full cursor-pointer rounded-lg px-4 text-sm shadow-sm"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={submitting}
-              className="min-h-12 w-full cursor-pointer rounded-lg px-4 text-sm shadow-sm"
+              className="min-h-11 w-full cursor-pointer rounded-lg px-4 text-sm shadow-sm"
             >
               {submitting ? (
                 <span className="inline-flex items-center gap-2">

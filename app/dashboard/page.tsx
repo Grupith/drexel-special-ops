@@ -426,6 +426,7 @@ export default function DashboardPage() {
 
             <div className="relative z-30 mt-8 mb-6 flex flex-col gap-3 overflow-visible sm:flex-row sm:items-center">
               <NewSplitModal
+                receiverNames={RECEIVING_TEAM_NAMES}
                 vendors={[
                   { id: "SHAW", name: "SHAW" },
                   { id: "test vendor", name: "test vendor" },

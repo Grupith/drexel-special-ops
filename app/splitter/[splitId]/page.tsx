@@ -836,7 +836,7 @@ export default function SplitViewPage() {
       <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start">
         <div className="space-y-3">
           <p className="text-sm font-medium text-muted-foreground">
-            Original image
+            Original Document
           </p>
           <div className="overflow-hidden rounded-[28px] border bg-muted/20 p-3">
             {showImagePreview && originalDocumentUrl ? (
