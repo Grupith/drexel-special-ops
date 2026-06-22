@@ -6,8 +6,6 @@ import {
   ArrowLeft,
   Check,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   ExternalLink,
   Loader2,
   Printer,
@@ -26,6 +24,15 @@ import {
 } from "firebase/firestore";
 import { getDownloadURL, getStorage, ref } from "firebase/storage";
 
+import { Button } from "@/components/ui/button";
+import {
+  type CarouselApi,
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
 import { Progress } from "@/components/ui/progress";
 import { db } from "@/lib/firebase/db";
 
@@ -446,6 +453,8 @@ export default function SplitViewPage() {
   >(null);
   const [previewModalTitle, setPreviewModalTitle] = React.useState("");
   const [previewModalMeta, setPreviewModalMeta] = React.useState<string[]>([]);
+  const [previewCarouselApi, setPreviewCarouselApi] =
+    React.useState<CarouselApi>();
 
   function openPreviewModal(
     imageUrl: string,
@@ -464,6 +473,7 @@ export default function SplitViewPage() {
     setPreviewModalImageUrl(null);
     setPreviewModalTitle("");
     setPreviewModalMeta([]);
+    setPreviewCarouselApi(undefined);
   }
 
   const [split, setSplit] = React.useState<SplitDoc | null>(null);
@@ -485,6 +495,35 @@ export default function SplitViewPage() {
     () => subSplits.filter((subSplit) => subSplit.previewImageUrl),
     [subSplits],
   );
+  const previewModalSlides = React.useMemo(() => {
+    if (previewModalIndex === null) {
+      return previewModalImageUrl
+        ? [
+            {
+              id: "single-preview",
+              imageUrl: previewModalImageUrl,
+              title: previewModalTitle || split?.fileName || "Split image",
+            },
+          ]
+        : [];
+    }
+
+    return previewableSubSplits
+      .filter((subSplit) => subSplit.previewImageUrl)
+      .map((subSplit, index) => ({
+        id: subSplit.id,
+        imageUrl: subSplit.previewImageUrl!,
+        title: subSplit.poNumber
+          ? `PO: ${subSplit.poNumber}`
+          : `Split ${index + 1}`,
+      }));
+  }, [
+    previewModalImageUrl,
+    previewModalIndex,
+    previewModalTitle,
+    previewableSubSplits,
+    split?.fileName,
+  ]);
   const canGoToPreviousPreview =
     previewModalIndex !== null && previewModalIndex > 0;
   const canGoToNextPreview =
@@ -628,6 +667,26 @@ export default function SplitViewPage() {
   }, [previewModalIndex, previewableSubSplits]);
 
   React.useEffect(() => {
+    if (!previewCarouselApi || previewModalIndex === null) return;
+
+    previewCarouselApi.scrollTo(previewModalIndex, true);
+  }, [previewCarouselApi, previewModalIndex]);
+
+  React.useEffect(() => {
+    if (!previewCarouselApi || previewModalIndex === null) return;
+
+    const handleSelect = () => {
+      setPreviewModalIndex(previewCarouselApi.selectedScrollSnap());
+    };
+
+    previewCarouselApi.on("select", handleSelect);
+
+    return () => {
+      previewCarouselApi.off("select", handleSelect);
+    };
+  }, [previewCarouselApi, previewModalIndex]);
+
+  React.useEffect(() => {
     if (!highlightedSubSplitId || subSplits.length === 0) return;
 
     const targetCard = highlightedCardRef.current;
@@ -652,27 +711,21 @@ export default function SplitViewPage() {
       }
 
       if (event.key === "ArrowLeft" && canGoToPreviousPreview) {
-        setPreviewModalIndex((current) =>
-          current === null ? current : Math.max(current - 1, 0),
-        );
+        previewCarouselApi?.scrollPrev();
       }
 
       if (event.key === "ArrowRight" && canGoToNextPreview) {
-        setPreviewModalIndex((current) =>
-          current === null
-            ? current
-            : Math.min(current + 1, previewableSubSplits.length - 1),
-        );
+        previewCarouselApi?.scrollNext();
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
+    previewCarouselApi,
     previewModalImageUrl,
     canGoToNextPreview,
     canGoToPreviousPreview,
-    previewableSubSplits.length,
   ]);
 
   if (loading) {
@@ -1155,70 +1208,73 @@ export default function SplitViewPage() {
       </div>
       {previewModalImageUrl ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-3 md:p-5"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/88 p-2 md:p-5"
           onClick={closePreviewModal}
         >
-          <div className="flex h-full w-full max-w-screen-2xl flex-col">
+          <div className="flex h-full w-full max-w-screen-2xl flex-col gap-3">
             <div
-              className="mb-3 flex w-full flex-col gap-3 rounded-xl border border-white/10 bg-background/95 px-3 py-3 shadow-lg backdrop-blur md:flex-row md:items-center md:justify-between md:px-4"
+              className="grid w-full gap-3 rounded-lg border border-white/10 bg-background/95 px-3 py-3 shadow-lg backdrop-blur lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center md:px-4"
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="flex min-w-0 flex-1 flex-col gap-2 lg:flex-row lg:items-center">
-                <div className="flex min-w-0 shrink-0 items-center gap-2 lg:max-w-lg">
-                  <p className="truncate text-lg font-semibold md:text-xl">
-                    {previewModalTitle}
-                  </p>
-                  {previewModalIndex !== null ? (
-                    <span className="shrink-0 rounded-full border bg-muted/30 px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                      {previewModalIndex + 1} of {previewableSubSplits.length}
-                    </span>
-                  ) : null}
-                </div>
+              <div className="flex min-w-0 flex-wrap gap-1.5 lg:justify-start">
+                {previewModalMeta.map((item) => {
+                  const [label, ...valueParts] = item.split(":");
+                  const value = valueParts.join(":").trim();
+                  const isGeneratedStatus =
+                    label === "Status" && value === "Generated";
 
-                {previewModalMeta.length > 0 ? (
-                  <div className="flex min-w-0 flex-wrap gap-1.5">
-                    {previewModalMeta.map((item) => {
-                      const [label, ...valueParts] = item.split(":");
-                      const value = valueParts.join(":").trim();
-                      const isGeneratedStatus =
-                        label === "Status" && value === "Generated";
+                  return (
+                    <div
+                      key={item}
+                      className={`inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-md border bg-muted/20 px-2.5 py-1 text-xs ${
+                        isGeneratedStatus ? "text-sky-600" : ""
+                      }`}
+                    >
+                      <span className="font-medium text-muted-foreground">
+                        {value ? label : "Detail"}
+                      </span>
+                      {isGeneratedStatus ? (
+                        <Check className="h-3.5 w-3.5 shrink-0" />
+                      ) : null}
+                      <span className="truncate font-semibold">
+                        {value || item}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
 
-                      return (
-                        <div
-                          key={item}
-                          className={`inline-flex min-h-7 max-w-full items-center gap-1.5 rounded-md border bg-muted/20 px-2 py-1 text-xs ${
-                            isGeneratedStatus ? "text-sky-600" : ""
-                          }`}
-                        >
-                          <span className="font-medium text-muted-foreground">
-                            {value ? label : "Detail"}
-                          </span>
-                          {isGeneratedStatus ? (
-                            <Check className="h-3.5 w-3.5 shrink-0" />
-                          ) : null}
-                          <span className="truncate font-semibold">
-                            {value || item}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
+              <div className="flex min-w-0 items-center justify-center gap-2 text-center">
+                <p className="truncate text-lg font-semibold md:text-xl">
+                  {previewModalTitle}
+                </p>
+                {previewModalIndex !== null ? (
+                  <span className="shrink-0 rounded-full border bg-muted/30 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    {previewModalIndex + 1} of {previewableSubSplits.length}
+                  </span>
                 ) : null}
               </div>
 
-              <div className="flex w-full flex-wrap items-center gap-2 md:w-auto md:flex-nowrap md:justify-end">
-                <a
-                  href={previewModalImageUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={(event) => event.stopPropagation()}
-                  className="inline-flex min-h-9 flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition hover:bg-muted md:flex-none"
+              <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap lg:justify-end">
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="min-h-9 flex-1 md:flex-none"
                 >
-                  <ExternalLink className="h-4 w-4" />
-                  <span>Open</span>
-                </a>
-                <button
+                  <a
+                    href={previewModalImageUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Open image in a new tab"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    <span>Open</span>
+                  </a>
+                </Button>
+                <Button
                   type="button"
+                  size="sm"
                   onClick={(event) => {
                     event.stopPropagation();
                     handlePrintSingleImage(
@@ -1226,85 +1282,107 @@ export default function SplitViewPage() {
                       previewModalTitle || "Split image",
                     );
                   }}
-                  className="inline-flex min-h-9 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 md:flex-none"
+                  className="min-h-9 flex-1 cursor-pointer md:flex-none"
                 >
                   <Printer className="h-4 w-4" />
                   <span>Print</span>
-                </button>
+                </Button>
                 {canPrintAll ? (
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={(event) => {
                       event.stopPropagation();
                       handlePrintAll();
                     }}
-                    className="inline-flex min-h-9 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition hover:bg-muted md:flex-none"
+                    className="min-h-9 flex-1 cursor-pointer md:flex-none"
                   >
                     <Printer className="h-4 w-4" />
                     <span>Print all</span>
-                  </button>
+                  </Button>
                 ) : null}
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="icon"
                   onClick={(event) => {
                     event.stopPropagation();
                     closePreviewModal();
                   }}
-                  className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                  className="h-9 w-9 shrink-0 cursor-pointer text-muted-foreground"
                   aria-label="Close preview"
                   title="Close preview"
                 >
                   <X className="h-4 w-4" />
-                </button>
+                </Button>
               </div>
             </div>
 
-            <div className="grid min-h-0 flex-1 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 md:gap-4">
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  if (!canGoToPreviousPreview) return;
-                  setPreviewModalIndex((current) =>
-                    current === null ? current : Math.max(current - 1, 0),
-                  );
-                }}
-                disabled={!canGoToPreviousPreview}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-background/95 text-foreground shadow-lg backdrop-blur transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-35 md:h-11 md:w-11"
-                aria-label="Previous split preview"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
+            <Carousel
+              setApi={setPreviewCarouselApi}
+              opts={{
+                align: "center",
+                startIndex: previewModalIndex ?? 0,
+              }}
+              className="min-h-0 flex-1"
+            >
+              <div className="relative flex h-full min-h-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 p-2 shadow-2xl md:p-3">
+                <CarouselContent className="h-full">
+                  {previewModalSlides.map((slide) => (
+                    <CarouselItem key={slide.id} className="h-full">
+                      <div className="flex h-full min-h-0 items-center justify-center">
+                        <div onClick={(event) => event.stopPropagation()}>
+                          <img
+                            src={slide.imageUrl}
+                            alt={slide.title}
+                            className="block h-auto max-h-[calc(100vh-10.5rem)] w-auto max-w-full rounded-md bg-background shadow-xl md:max-h-[calc(100vh-9.75rem)]"
+                          />
+                        </div>
+                      </div>
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
 
-              <div
-                className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/5 p-2 shadow-2xl md:p-3"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <img
-                  src={previewModalImageUrl}
-                  alt={previewModalTitle}
-                  className="block h-auto max-h-[calc(100vh-7.5rem)] w-auto max-w-full rounded-lg bg-background shadow-xl md:max-h-[calc(100vh-8.25rem)]"
-                />
+                {previewModalIndex !== null && previewModalSlides.length > 1 ? (
+                  <div onClick={(event) => event.stopPropagation()}>
+                    <CarouselPrevious
+                      variant="outline"
+                      className="left-2 h-10 w-10 border-white/15 bg-background/95 shadow-lg backdrop-blur hover:bg-muted md:left-4 md:h-11 md:w-11"
+                      aria-label="Previous split preview"
+                    />
+                    <CarouselNext
+                      variant="outline"
+                      className="right-2 h-10 w-10 border-white/15 bg-background/95 shadow-lg backdrop-blur hover:bg-muted md:right-4 md:h-11 md:w-11"
+                      aria-label="Next split preview"
+                    />
+                  </div>
+                ) : null}
               </div>
 
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  if (!canGoToNextPreview) return;
-                  setPreviewModalIndex((current) =>
-                    current === null
-                      ? current
-                      : Math.min(current + 1, previewableSubSplits.length - 1),
-                  );
-                }}
-                disabled={!canGoToNextPreview}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-background/95 text-foreground shadow-lg backdrop-blur transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-35 md:h-11 md:w-11"
-                aria-label="Next split preview"
-              >
-                <ChevronRight className="h-5 w-5" />
-              </button>
-            </div>
+              {previewModalIndex !== null && previewModalSlides.length > 1 ? (
+                <div
+                  className="mt-2 flex items-center justify-center gap-1.5"
+                  onClick={(event) => event.stopPropagation()}
+                  aria-label="Split preview slides"
+                >
+                  {previewModalSlides.map((slide, index) => (
+                    <button
+                      key={`${slide.id}-indicator`}
+                      type="button"
+                      onClick={() => previewCarouselApi?.scrollTo(index)}
+                      className={`h-2.5 rounded-full border border-white/15 transition ${
+                        index === previewModalIndex
+                          ? "w-8 bg-background"
+                          : "w-2.5 bg-background/40 hover:bg-background/70"
+                      }`}
+                      aria-label={`Show ${slide.title}`}
+                      aria-current={index === previewModalIndex}
+                    />
+                  ))}
+                </div>
+              ) : null}
+            </Carousel>
           </div>
         </div>
       ) : null}
