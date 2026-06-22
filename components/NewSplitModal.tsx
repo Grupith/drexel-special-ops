@@ -28,7 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import {
   FileImage,
   FileText,
@@ -68,7 +67,17 @@ export function NewSplitModal({
   const [open, setOpen] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
-  const [vendorId, setVendorId] = React.useState("");
+  const defaultVendorId = React.useMemo(
+    () =>
+      vendors.find(
+        (vendor) =>
+          vendor.id.toLowerCase() === "shaw" ||
+          vendor.name.toLowerCase() === "shaw",
+      )?.id ?? "",
+    [vendors],
+  );
+
+  const [vendorId, setVendorId] = React.useState(defaultVendorId);
   const [comment, setComment] = React.useState("");
   const [file, setFile] = React.useState<File | null>(null);
   const [errors, setErrors] = React.useState<{
@@ -126,8 +135,14 @@ export function NewSplitModal({
     };
   }, [imagePreviewUrl]);
 
+  React.useEffect(() => {
+    if (!vendorId && defaultVendorId) {
+      setVendorId(defaultVendorId);
+    }
+  }, [defaultVendorId, vendorId]);
+
   function resetForm() {
-    setVendorId("");
+    setVendorId(defaultVendorId);
     setComment("");
     setFile(null);
     setIsDragActive(false);

@@ -56,13 +56,6 @@ type SubSplitDoc = {
   updatedAt?: Timestamp;
 };
 
-function isImageFile(fileName: string) {
-  const lower = fileName.toLowerCase();
-  return [".png", ".jpg", ".jpeg", ".webp", ".gif"].some((ext) =>
-    lower.endsWith(ext),
-  );
-}
-
 function getStatusStyles(status: string) {
   switch (status) {
     case "uploaded":
@@ -183,6 +176,55 @@ async function enrichSubSplitWithPreviewUrl(
       previewImageUrl: undefined,
     };
   }
+}
+
+async function resolveMasterPreviewUrl(
+  split: SplitDoc,
+): Promise<string | null> {
+  const originalImageUrl = split.originalImageUrl?.trim();
+  const originalImagePath = split.originalImagePath?.trim();
+
+  const isPdfUrl = originalImageUrl?.toLowerCase().includes(".pdf");
+  const isPdfPath = originalImagePath?.toLowerCase().endsWith(".pdf");
+
+  if (originalImageUrl && !isPdfUrl) {
+    return originalImageUrl;
+  }
+
+  const candidatePreviewPaths = [
+    originalImagePath?.replace(/\.pdf$/i, ".jpg"),
+    originalImagePath?.replace(/\/master\.pdf$/i, "/master.jpg"),
+    originalImagePath
+      ? originalImagePath.replace(/\/original\/[^/]+$/i, "/original/master.jpg")
+      : undefined,
+  ].filter(Boolean) as string[];
+
+  if (!isPdfPath && originalImagePath) {
+    candidatePreviewPaths.unshift(originalImagePath);
+  }
+
+  const uniqueCandidatePreviewPaths = Array.from(
+    new Set(candidatePreviewPaths),
+  );
+
+  for (const previewPath of uniqueCandidatePreviewPaths) {
+    try {
+      const storage = getStorage();
+      return await getDownloadURL(ref(storage, previewPath));
+    } catch (error) {
+      console.warn(
+        "Failed to resolve master preview image URL:",
+        previewPath,
+        error,
+      );
+    }
+  }
+
+  return originalImageUrl ?? null;
+}
+
+function isPdfUrl(url?: string | null) {
+  return Boolean(url?.toLowerCase().includes(".pdf"));
 }
 
 export default function SplitViewPage() {
@@ -415,6 +457,9 @@ export default function SplitViewPage() {
     React.useState(false);
   const [isResolvingPreviewUrls, setIsResolvingPreviewUrls] =
     React.useState(false);
+  const [masterPreviewUrl, setMasterPreviewUrl] = React.useState<string | null>(
+    null,
+  );
 
   const previewableSubSplits = React.useMemo(
     () => subSplits.filter((subSplit) => subSplit.previewImageUrl),
@@ -436,6 +481,7 @@ export default function SplitViewPage() {
     setError(null);
     setNotFound(false);
     setSplit(null);
+    setMasterPreviewUrl(null);
     setSubSplits([]);
     setHasReceivedSplitSnapshot(false);
     setHasReceivedSubSplitsSnapshot(false);
@@ -460,7 +506,15 @@ export default function SplitViewPage() {
         }
 
         setNotFound(false);
-        setSplit(splitSnap.data() as SplitDoc);
+
+        const splitData = splitSnap.data() as SplitDoc;
+        setSplit(splitData);
+
+        void (async () => {
+          const resolvedMasterPreviewUrl =
+            await resolveMasterPreviewUrl(splitData);
+          setMasterPreviewUrl(resolvedMasterPreviewUrl);
+        })();
       },
       (err) => {
         console.error("Failed to subscribe to split:", err);
@@ -670,7 +724,10 @@ export default function SplitViewPage() {
       split.status === "processing" ||
       split.status === "splitting" ||
       split.status === "uploading");
-  const showImagePreview = isImageFile(split.fileName);
+  const originalDocumentUrl =
+    masterPreviewUrl ?? split.originalImageUrl?.trim();
+  const showPdfPreview = isPdfUrl(originalDocumentUrl);
+  const showImagePreview = Boolean(originalDocumentUrl) && !showPdfPreview;
 
   return (
     <div className="mx-auto max-w-7xl p-4 md:p-6">
@@ -782,12 +839,12 @@ export default function SplitViewPage() {
             Original image
           </p>
           <div className="overflow-hidden rounded-[28px] border bg-muted/20 p-3">
-            {showImagePreview ? (
+            {showImagePreview && originalDocumentUrl ? (
               <button
                 type="button"
                 onClick={() =>
                   openPreviewModal(
-                    split.originalImageUrl,
+                    originalDocumentUrl,
                     split.fileName,
                     [],
                     undefined,
@@ -797,12 +854,36 @@ export default function SplitViewPage() {
               >
                 <div className="relative aspect-[8.5/11] w-full overflow-hidden rounded-[22px] border bg-background">
                   <img
-                    src={split.originalImageUrl}
+                    src={originalDocumentUrl}
                     alt={split.fileName}
                     className="absolute inset-0 h-full w-full object-contain transition duration-200 group-hover:scale-[1.01] group-hover:opacity-95"
+                    onError={() => {
+                      console.error(
+                        "Original image preview failed to load:",
+                        originalDocumentUrl,
+                      );
+                    }}
                   />
                 </div>
               </button>
+            ) : showPdfPreview && originalDocumentUrl ? (
+              <div className="overflow-hidden rounded-[22px] border bg-background">
+                <iframe
+                  src={`${originalDocumentUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                  title={split.fileName}
+                  className="aspect-[8.5/11] w-full"
+                />
+                <div className="border-t bg-muted/30 p-3 text-center text-xs text-muted-foreground">
+                  <a
+                    href={originalDocumentUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-medium underline"
+                  >
+                    Open PDF
+                  </a>
+                </div>
+              </div>
             ) : (
               <div className="flex aspect-[8.5/11] items-center justify-center rounded-[22px] border bg-background p-6 text-center text-sm text-muted-foreground">
                 <div>

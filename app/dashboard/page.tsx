@@ -59,7 +59,7 @@ const RECEIVING_TEAM_NAMES = [
   "Ashley Helgerson",
   "Dylan Koss",
   "Mike Santacroche",
-  "Paul Nedden",
+  "AJ Klotz",
   "Chris Roeske",
   "Bryce Vogt",
   "Brad Drobka",

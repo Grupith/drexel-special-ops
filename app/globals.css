@@ -186,4 +186,33 @@
     @apply bg-background text-foreground;
     letter-spacing: var(--tracking-normal);
   }
+
+  [data-sidebar="content"] {
+    background-color: var(--sidebar);
+    scrollbar-color: var(--sidebar-border) var(--sidebar);
+    scrollbar-width: thin;
+  }
+
+  [data-sidebar="content"]::-webkit-scrollbar {
+    background-color: var(--sidebar);
+    width: 0.5rem;
+  }
+
+  [data-sidebar="content"]::-webkit-scrollbar-track {
+    background-color: var(--sidebar);
+  }
+
+  [data-sidebar="content"]::-webkit-scrollbar-track-piece {
+    background-color: var(--sidebar);
+  }
+
+  [data-sidebar="content"]::-webkit-scrollbar-thumb {
+    background-color: var(--sidebar-border);
+    border: 2px solid var(--sidebar);
+    border-radius: 999px;
+  }
+
+  [data-sidebar="content"]::-webkit-scrollbar-thumb:hover {
+    background-color: var(--sidebar-ring);
+  }
 }
