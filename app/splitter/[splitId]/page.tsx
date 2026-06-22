@@ -154,7 +154,7 @@ async function enrichSubSplitWithPreviewUrl(
   const existingUrl = subSplit.generatedImageUrl ?? subSplit.previewImageUrl;
   const storagePath = subSplit.generatedImagePath ?? subSplit.imagePath;
 
-  if (existingUrl || !storagePath) {
+  if (!storagePath) {
     return {
       ...subSplit,
       previewImageUrl: existingUrl,
@@ -247,7 +247,7 @@ export default function SplitViewPage() {
     printWindow.document.write(`
       <html>
         <head>
-          <title> drexelspecialops.com | PO Splitter </title>
+          <title> drexelspecialops | PO Splitter </title>
           <style>
             @page {
               size: auto;
@@ -344,7 +344,7 @@ export default function SplitViewPage() {
     printWindow.document.write(`
       <html>
         <head>
-          <title> drexelspecialops.com | PO Splitter </title>
+          <title> drexelspecialops | PO Splitter </title>
           <style>
             @page {
               size: auto;
@@ -1157,7 +1157,7 @@ export default function SplitViewPage() {
               onClick={(event) => event.stopPropagation()}
             >
               <div className="flex min-w-0 flex-1 flex-col gap-2 lg:flex-row lg:items-center">
-                <div className="flex min-w-0 shrink-0 items-center gap-2 lg:max-w-[32rem]">
+                <div className="flex min-w-0 shrink-0 items-center gap-2 lg:max-w-lg">
                   <p className="truncate text-lg font-semibold md:text-xl">
                     {previewModalTitle}
                   </p>

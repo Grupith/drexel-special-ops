@@ -53,6 +53,11 @@ const CONFIG = {
   rowMergeTolerance: 12,
   defaultHeaderHeight: 950,
   jpegQuality: 92,
+  stampHeight: 118,
+  stampLeftPadding: 42,
+  stampFirstLineY: 46,
+  stampSecondLineY: 90,
+  stampFontSize: 36,
   uploadProgressMaxPercent: 95,
   landscapeRotationDegrees: 90,
   pdfRenderScale: 2.5,
@@ -133,6 +138,41 @@ function normalizeText(text: string): string {
 
 function normalizePoNumber(poNumber: string): string {
   return poNumber.trim().toUpperCase();
+}
+
+function isStampEnabled(value: unknown): boolean {
+  return value === true || value === "true" || value === 1;
+}
+
+function escapeSvgText(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function getOrdinalSuffix(day: number): string {
+  const lastTwoDigits = day % 100;
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 13) return "th";
+
+  switch (day % 10) {
+    case 1:
+      return "st";
+    case 2:
+      return "nd";
+    case 3:
+      return "rd";
+    default:
+      return "th";
+  }
+}
+
+function formatStampDate(date: Date): string {
+  const month = date.toLocaleString("en-US", { month: "long" });
+  const day = date.getDate();
+  return `${month} ${day}${getOrdinalSuffix(day)}, ${date.getFullYear()}`;
 }
 
 function buildStorageDownloadUrl(bucketName: string, filePath: string): string {
@@ -780,6 +820,26 @@ async function renderFirstPdfPageToImageBuffer(
   return buffer;
 }
 
+function buildStampSvg(
+  imageWidth: number,
+  receivedByName: string,
+  dateReceived: Date,
+): Buffer {
+  const safeReceivedByName = escapeSvgText(receivedByName);
+  const safeDateReceived = escapeSvgText(formatStampDate(dateReceived));
+
+  return Buffer.from(`
+<svg width="${imageWidth}" height="${CONFIG.stampHeight}" viewBox="0 0 ${imageWidth} ${CONFIG.stampHeight}" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100%" height="100%" fill="#ffffff"/>
+  <text x="${CONFIG.stampLeftPadding}" y="${CONFIG.stampFirstLineY}" font-family="Arial, Helvetica, sans-serif" font-size="${CONFIG.stampFontSize}" fill="#000000">
+    <tspan>Received by:</tspan><tspan dx="14" fill="#cc0000" font-weight="700">${safeReceivedByName}</tspan>
+  </text>
+  <text x="${CONFIG.stampLeftPadding}" y="${CONFIG.stampSecondLineY}" font-family="Arial, Helvetica, sans-serif" font-size="${CONFIG.stampFontSize}" fill="#000000">
+    <tspan>Date received:</tspan><tspan dx="14" font-weight="700">${safeDateReceived}</tspan>
+  </text>
+</svg>`);
+}
+
 // ==================== MAIN FUNCTION ====================
 
 export const processShawBol = functions.storage.onObjectFinalized(
@@ -795,6 +855,9 @@ export const processShawBol = functions.storage.onObjectFinalized(
     const splitRef = db.doc(`splits/${splitId}`);
     const bucket = admin.storage().bucket(bucketName);
     let splitCreatedBy = "";
+    let includeStamp = false;
+    let receivedByName = "Unknown";
+    let dateReceived = new Date();
     const tempFile = path.join(
       os.tmpdir(),
       `shaw_bol_${splitId}_${Date.now()}.jpg`,
@@ -818,9 +881,13 @@ export const processShawBol = functions.storage.onObjectFinalized(
       await db.runTransaction(async (tx) => {
         const snap = await tx.get(splitRef);
         if (!snap.exists) throw new Error(`Split not found`);
-        splitCreatedBy = snap.data()?.createdBy || "";
+        const splitData = snap.data() ?? {};
+        splitCreatedBy = splitData.createdBy || "";
+        includeStamp = isStampEnabled(splitData.includeStamp);
+        receivedByName = splitData.receivedByName || "Unknown";
+        dateReceived = splitData.dateReceived?.toDate?.() ?? new Date();
         if (
-          ["processing", "splitting", "completed"].includes(snap.data()?.status)
+          ["processing", "splitting", "completed"].includes(splitData.status)
         )
           throw new Error("already_processed");
         tx.update(splitRef, buildStatusPatch("queued", { progressPercent: 5 }));
@@ -978,16 +1045,27 @@ export const processShawBol = functions.storage.onObjectFinalized(
           groupHeight,
         );
 
-        const bodyTop = safeHeaderHeight + CONFIG.outputHeaderBodyGap;
+        const stampBuffer = includeStamp
+          ? buildStampSvg(imageWidth, receivedByName, dateReceived)
+          : null;
+        const stampHeight = stampBuffer ? CONFIG.stampHeight : 0;
+        const headerTop = stampHeight;
+        const bodyTop =
+          stampHeight + safeHeaderHeight + CONFIG.outputHeaderBodyGap;
 
         console.log(
-          `Generating sub-split for PO ${poNumber}: headerHeight=${headerHeight}, safeHeaderHeight=${safeHeaderHeight}, bodyTop=${bodyTop}, groupTop=${bodyExtractArea.top}, height=${bodyExtractArea.height}, imageHeight=${imageHeight}, firstRowTop=${firstRowTop}, lastRowBottom=${lastRowBottom}, nextRowTop=${nextRow?.minY ?? "none"}`,
+          `Generating sub-split for PO ${poNumber}: headerHeight=${headerHeight}, safeHeaderHeight=${safeHeaderHeight}, includeStamp=${includeStamp}, stampHeight=${stampHeight}, bodyTop=${bodyTop}, groupTop=${bodyExtractArea.top}, height=${bodyExtractArea.height}, imageHeight=${imageHeight}, firstRowTop=${firstRowTop}, lastRowBottom=${lastRowBottom}, nextRowTop=${nextRow?.minY ?? "none"}`,
         );
 
         const bodyBuffer = await sharp(imageBuffer)
           .extract(bodyExtractArea)
           .toBuffer();
         const outputHeight = bodyTop + bodyExtractArea.height;
+        const compositeInputs = [
+          ...(stampBuffer ? [{ input: stampBuffer, top: 0, left: 0 }] : []),
+          { input: headerBuffer, top: headerTop, left: 0 },
+          { input: bodyBuffer, top: bodyTop, left: 0 },
+        ];
 
         const subImageBuffer = await sharp({
           create: {
@@ -997,10 +1075,7 @@ export const processShawBol = functions.storage.onObjectFinalized(
             background: { r: 255, g: 255, b: 255, alpha: 1 },
           },
         })
-          .composite([
-            { input: headerBuffer, top: 0, left: 0 },
-            { input: bodyBuffer, top: bodyTop, left: 0 },
-          ])
+          .composite(compositeInputs)
           .jpeg({ quality: CONFIG.jpegQuality })
           .toBuffer();
 
@@ -1017,9 +1092,15 @@ export const processShawBol = functions.storage.onObjectFinalized(
           order,
           rowCount: group.length,
           imagePath,
+          generatedImagePath: imagePath,
           imageUrl: buildStorageDownloadUrl(bucketName, imagePath),
           storageBucket: bucketName,
+          includeStamp,
+          stampApplied: includeStamp,
+          receivedByName,
+          dateReceived: admin.firestore.Timestamp.fromDate(dateReceived),
           headerHeight: safeHeaderHeight,
+          stampHeight,
           cropTop: bodyExtractArea.top,
           cropBottom: bodyExtractArea.top + bodyExtractArea.height,
           cropHeight: bodyExtractArea.height,

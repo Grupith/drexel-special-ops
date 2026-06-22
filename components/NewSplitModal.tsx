@@ -81,6 +81,7 @@ export function NewSplitModal({
 
   const [vendorId, setVendorId] = React.useState(defaultVendorId);
   const [receivedByName, setReceivedByName] = React.useState("");
+  const [includeStamp, setIncludeStamp] = React.useState(false);
   const [file, setFile] = React.useState<File | null>(null);
   const [errors, setErrors] = React.useState<{
     receivedByName?: string;
@@ -147,6 +148,7 @@ export function NewSplitModal({
   function resetForm() {
     setVendorId(defaultVendorId);
     setReceivedByName("");
+    setIncludeStamp(false);
     setFile(null);
     setIsDragActive(false);
     setErrors({});
@@ -223,7 +225,9 @@ export function NewSplitModal({
         originalImagePath,
         originalImageUrl: "",
         fileName: file.name,
+        includeStamp,
         receivedByName,
+        dateReceived: serverTimestamp(),
       });
 
       await uploadBytes(storageRef, file);
@@ -385,6 +389,34 @@ export function NewSplitModal({
                   </p>
                 ) : null}
               </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-border/80 bg-background px-3 py-3">
+              <input
+                id="include-stamp"
+                type="checkbox"
+                checked={includeStamp}
+                disabled={submitting}
+                onChange={(event) => setIncludeStamp(event.target.checked)}
+                className="peer sr-only"
+              />
+              <Label
+                htmlFor="include-stamp"
+                className="cursor-pointer text-sm font-medium leading-5"
+              >
+                Include Stamp
+              </Label>
+              <Label
+                htmlFor="include-stamp"
+                aria-label="Include Stamp"
+                className="relative h-6 w-11 shrink-0 cursor-pointer rounded-full border border-border bg-muted transition-colors peer-checked:border-primary peer-checked:bg-primary peer-disabled:cursor-not-allowed peer-disabled:opacity-60"
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 size-5 rounded-full bg-background shadow-sm transition-transform ${
+                    includeStamp ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </Label>
             </div>
 
             <div className="space-y-2.5">

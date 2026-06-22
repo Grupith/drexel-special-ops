@@ -58,6 +58,11 @@ const CONFIG = {
     rowMergeTolerance: 12,
     defaultHeaderHeight: 950,
     jpegQuality: 92,
+    stampHeight: 118,
+    stampLeftPadding: 42,
+    stampFirstLineY: 46,
+    stampSecondLineY: 90,
+    stampFontSize: 36,
     uploadProgressMaxPercent: 95,
     landscapeRotationDegrees: 90,
     pdfRenderScale: 2.5,
@@ -119,6 +124,37 @@ function normalizeText(text) {
 }
 function normalizePoNumber(poNumber) {
     return poNumber.trim().toUpperCase();
+}
+function isStampEnabled(value) {
+    return value === true || value === "true" || value === 1;
+}
+function escapeSvgText(text) {
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&apos;");
+}
+function getOrdinalSuffix(day) {
+    const lastTwoDigits = day % 100;
+    if (lastTwoDigits >= 11 && lastTwoDigits <= 13)
+        return "th";
+    switch (day % 10) {
+        case 1:
+            return "st";
+        case 2:
+            return "nd";
+        case 3:
+            return "rd";
+        default:
+            return "th";
+    }
+}
+function formatStampDate(date) {
+    const month = date.toLocaleString("en-US", { month: "long" });
+    const day = date.getDate();
+    return `${month} ${day}${getOrdinalSuffix(day)}, ${date.getFullYear()}`;
 }
 function buildStorageDownloadUrl(bucketName, filePath) {
     return `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(filePath)}?alt=media`;
@@ -607,6 +643,20 @@ async function renderFirstPdfPageToImageBuffer(pdfBuffer) {
     canvasFactory.destroy(c);
     return buffer;
 }
+function buildStampSvg(imageWidth, receivedByName, dateReceived) {
+    const safeReceivedByName = escapeSvgText(receivedByName);
+    const safeDateReceived = escapeSvgText(formatStampDate(dateReceived));
+    return Buffer.from(`
+<svg width="${imageWidth}" height="${CONFIG.stampHeight}" viewBox="0 0 ${imageWidth} ${CONFIG.stampHeight}" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100%" height="100%" fill="#ffffff"/>
+  <text x="${CONFIG.stampLeftPadding}" y="${CONFIG.stampFirstLineY}" font-family="Arial, Helvetica, sans-serif" font-size="${CONFIG.stampFontSize}" fill="#000000">
+    <tspan>Received by:</tspan><tspan dx="14" fill="#cc0000" font-weight="700">${safeReceivedByName}</tspan>
+  </text>
+  <text x="${CONFIG.stampLeftPadding}" y="${CONFIG.stampSecondLineY}" font-family="Arial, Helvetica, sans-serif" font-size="${CONFIG.stampFontSize}" fill="#000000">
+    <tspan>Date received:</tspan><tspan dx="14" font-weight="700">${safeDateReceived}</tspan>
+  </text>
+</svg>`);
+}
 // ==================== MAIN FUNCTION ====================
 exports.processShawBol = functions.storage.onObjectFinalized({ region: "us-central1", memory: CONFIG.memory, timeoutSeconds: 300 }, async (event) => {
     const filePath = event.data.name ?? "";
@@ -619,6 +669,9 @@ exports.processShawBol = functions.storage.onObjectFinalized({ region: "us-centr
     const splitRef = db.doc(`splits/${splitId}`);
     const bucket = admin.storage().bucket(bucketName);
     let splitCreatedBy = "";
+    let includeStamp = false;
+    let receivedByName = "Unknown";
+    let dateReceived = new Date();
     const tempFile = path.join(os.tmpdir(), `shaw_bol_${splitId}_${Date.now()}.jpg`);
     const isSupportedImage = SUPPORTED_IMAGE_EXTENSIONS.has(fileExtension);
     const isSupportedPdf = SUPPORTED_PDF_EXTENSIONS.has(fileExtension);
@@ -634,8 +687,12 @@ exports.processShawBol = functions.storage.onObjectFinalized({ region: "us-centr
             const snap = await tx.get(splitRef);
             if (!snap.exists)
                 throw new Error(`Split not found`);
-            splitCreatedBy = snap.data()?.createdBy || "";
-            if (["processing", "splitting", "completed"].includes(snap.data()?.status))
+            const splitData = snap.data() ?? {};
+            splitCreatedBy = splitData.createdBy || "";
+            includeStamp = isStampEnabled(splitData.includeStamp);
+            receivedByName = splitData.receivedByName || "Unknown";
+            dateReceived = splitData.dateReceived?.toDate?.() ?? new Date();
+            if (["processing", "splitting", "completed"].includes(splitData.status))
                 throw new Error("already_processed");
             tx.update(splitRef, buildStatusPatch("queued", { progressPercent: 5 }));
         });
@@ -733,12 +790,22 @@ exports.processShawBol = functions.storage.onObjectFinalized({ region: "us-centr
             }
             const groupHeight = Math.max(1, groupBottom - groupTop);
             const bodyExtractArea = clampExtractArea(imageWidth, imageHeight, groupTop, groupHeight);
-            const bodyTop = safeHeaderHeight + CONFIG.outputHeaderBodyGap;
-            console.log(`Generating sub-split for PO ${poNumber}: headerHeight=${headerHeight}, safeHeaderHeight=${safeHeaderHeight}, bodyTop=${bodyTop}, groupTop=${bodyExtractArea.top}, height=${bodyExtractArea.height}, imageHeight=${imageHeight}, firstRowTop=${firstRowTop}, lastRowBottom=${lastRowBottom}, nextRowTop=${nextRow?.minY ?? "none"}`);
+            const stampBuffer = includeStamp
+                ? buildStampSvg(imageWidth, receivedByName, dateReceived)
+                : null;
+            const stampHeight = stampBuffer ? CONFIG.stampHeight : 0;
+            const headerTop = stampHeight;
+            const bodyTop = stampHeight + safeHeaderHeight + CONFIG.outputHeaderBodyGap;
+            console.log(`Generating sub-split for PO ${poNumber}: headerHeight=${headerHeight}, safeHeaderHeight=${safeHeaderHeight}, includeStamp=${includeStamp}, stampHeight=${stampHeight}, bodyTop=${bodyTop}, groupTop=${bodyExtractArea.top}, height=${bodyExtractArea.height}, imageHeight=${imageHeight}, firstRowTop=${firstRowTop}, lastRowBottom=${lastRowBottom}, nextRowTop=${nextRow?.minY ?? "none"}`);
             const bodyBuffer = await (0, sharp_1.default)(imageBuffer)
                 .extract(bodyExtractArea)
                 .toBuffer();
             const outputHeight = bodyTop + bodyExtractArea.height;
+            const compositeInputs = [
+                ...(stampBuffer ? [{ input: stampBuffer, top: 0, left: 0 }] : []),
+                { input: headerBuffer, top: headerTop, left: 0 },
+                { input: bodyBuffer, top: bodyTop, left: 0 },
+            ];
             const subImageBuffer = await (0, sharp_1.default)({
                 create: {
                     width: imageWidth,
@@ -747,10 +814,7 @@ exports.processShawBol = functions.storage.onObjectFinalized({ region: "us-centr
                     background: { r: 255, g: 255, b: 255, alpha: 1 },
                 },
             })
-                .composite([
-                { input: headerBuffer, top: 0, left: 0 },
-                { input: bodyBuffer, top: bodyTop, left: 0 },
-            ])
+                .composite(compositeInputs)
                 .jpeg({ quality: CONFIG.jpegQuality })
                 .toBuffer();
             const imagePath = `splits/${splitId}/subSplits/${subSplitId}/image.jpg`;
@@ -765,9 +829,15 @@ exports.processShawBol = functions.storage.onObjectFinalized({ region: "us-centr
                 order,
                 rowCount: group.length,
                 imagePath,
+                generatedImagePath: imagePath,
                 imageUrl: buildStorageDownloadUrl(bucketName, imagePath),
                 storageBucket: bucketName,
+                includeStamp,
+                stampApplied: includeStamp,
+                receivedByName,
+                dateReceived: admin.firestore.Timestamp.fromDate(dateReceived),
                 headerHeight: safeHeaderHeight,
+                stampHeight,
                 cropTop: bodyExtractArea.top,
                 cropBottom: bodyExtractArea.top + bodyExtractArea.height,
                 cropHeight: bodyExtractArea.height,
