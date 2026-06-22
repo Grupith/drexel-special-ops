@@ -441,7 +441,7 @@ export default function DashboardPage() {
                 receiverNames={RECEIVING_TEAM_NAMES}
                 vendors={[
                   { id: "SHAW", name: "SHAW" },
-                  { id: "test vendor", name: "test vendor" },
+                  { id: "SFI", name: "SFI (coming soon)", disabled: true },
                 ]}
                 trigger={
                   <Button

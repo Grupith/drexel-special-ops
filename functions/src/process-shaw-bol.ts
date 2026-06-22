@@ -886,9 +886,7 @@ export const processShawBol = functions.storage.onObjectFinalized(
         includeStamp = isStampEnabled(splitData.includeStamp);
         receivedByName = splitData.receivedByName || "Unknown";
         dateReceived = splitData.dateReceived?.toDate?.() ?? new Date();
-        if (
-          ["processing", "splitting", "completed"].includes(splitData.status)
-        )
+        if (["processing", "splitting", "completed"].includes(splitData.status))
           throw new Error("already_processed");
         tx.update(splitRef, buildStatusPatch("queued", { progressPercent: 5 }));
       });

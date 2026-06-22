@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { getAuth } from "firebase/auth";
 import { doc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
@@ -28,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
   TooltipContent,
@@ -44,7 +46,7 @@ import {
   UserRound,
 } from "lucide-react";
 
-type VendorOption = { id: string; name: string };
+type VendorOption = { id: string; name: string; disabled?: boolean };
 
 const ALLOWED_FILE_TYPES = ["image/jpeg", "image/png", "application/pdf"];
 const ALLOWED_FILE_EXTENSIONS = ["jpg", "jpeg", "png", "pdf"];
@@ -60,6 +62,26 @@ function isPdfFile(file: File) {
   return (
     file.type === "application/pdf" || getFileExtension(file.name) === "pdf"
   );
+}
+
+function getOrdinalSuffix(day: number) {
+  if (day >= 11 && day <= 13) return "th";
+  switch (day % 10) {
+    case 1:
+      return "st";
+    case 2:
+      return "nd";
+    case 3:
+      return "rd";
+    default:
+      return "th";
+  }
+}
+
+function formatStampPreviewDate(date: Date) {
+  const month = date.toLocaleString("en-US", { month: "long" });
+  const day = date.getDate();
+  return `${month} ${day}${getOrdinalSuffix(day)}, ${date.getFullYear()}`;
 }
 
 export function NewSplitModal({
@@ -96,6 +118,12 @@ export function NewSplitModal({
   }>({});
   const [submitting, setSubmitting] = React.useState(false);
   const [isDragActive, setIsDragActive] = React.useState(false);
+  const includeStampSwitchRef = React.useRef<HTMLButtonElement | null>(null);
+  const includeStampClickDelegatedRef = React.useRef(false);
+  const stampPreviewDate = React.useMemo(
+    () => formatStampPreviewDate(new Date()),
+    [],
+  );
 
   const handleSelectedFile = React.useCallback((nextFile: File | null) => {
     setFile(nextFile);
@@ -340,6 +368,7 @@ export function NewSplitModal({
                       <SelectItem
                         key={v.id}
                         value={v.id}
+                        disabled={v.disabled}
                         className="cursor-pointer rounded-lg"
                       >
                         {v.name}
@@ -397,47 +426,90 @@ export function NewSplitModal({
               </div>
             </div>
 
-            <Label
-              htmlFor="include-stamp"
-              className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-border/80 bg-background px-3 py-3 text-sm font-medium leading-5"
+            <div
+              className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-border/80 bg-background px-3 py-3 text-sm font-medium leading-5 transition-colors hover:bg-muted/35"
+              onClick={(event) => {
+                if (submitting) return;
+
+                if (includeStampClickDelegatedRef.current) {
+                  includeStampClickDelegatedRef.current = false;
+                  return;
+                }
+
+                const target = event.target as HTMLElement;
+                if (
+                  target.closest("[data-slot='switch']") ||
+                  target.closest("input[type='checkbox']") ||
+                  target.closest("[data-stamp-help]")
+                ) {
+                  return;
+                }
+
+                includeStampClickDelegatedRef.current = true;
+                includeStampSwitchRef.current?.click();
+              }}
             >
-              <input
-                id="include-stamp"
-                type="checkbox"
-                checked={includeStamp}
-                disabled={submitting}
-                onChange={(event) => setIncludeStamp(event.target.checked)}
-                className="peer sr-only"
-              />
-              <span className="flex items-center gap-2">
+              <Label className="flex cursor-pointer items-center gap-2 text-sm font-medium leading-5">
                 Include Stamp
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span
                       aria-label="Include stamp details"
+                      data-stamp-help
                       className="inline-flex size-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
                       tabIndex={0}
+                      onClick={(event) => event.stopPropagation()}
                     >
                       <CircleHelp className="size-4" />
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-64">
-                    Stamps each subsplit image with a Received by: and the
-                    current date received at the top of each page.
+                  <TooltipContent
+                    side="top"
+                    className="max-w-80 border border-border/80 bg-popover p-2.5 text-popover-foreground shadow-lg"
+                  >
+                    <div className="space-y-2">
+                      <div className="space-y-1 text-xs leading-5">
+                        <p className="font-semibold">
+                          Places a "Received" stamp on each subsplit document
+                          with the following:
+                        </p>
+                        <div className="rounded-md border border-border/70 bg-background px-2 py-1.5 font-mono text-[11px] leading-5 text-foreground">
+                          <p>
+                            Received by:{" "}
+                            <span className="font-semibold text-red-600">
+                              {receivedByName || "selected receiver"}
+                            </span>
+                          </p>
+                          <p>
+                            Date received:{" "}
+                            <span className="font-semibold">
+                              {stampPreviewDate}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground">Example</p>
+                      <Image
+                        src="/images/stamp-example.png"
+                        alt="Example of the received stamp added to a split document"
+                        width={1128}
+                        height={872}
+                        className="h-36 w-72 max-w-full rounded-md border border-border/70 bg-background object-cover object-top-left"
+                      />
+                    </div>
                   </TooltipContent>
                 </Tooltip>
-              </span>
-              <span
-                aria-hidden="true"
-                className="relative h-6 w-11 shrink-0 cursor-pointer rounded-full border border-border bg-muted transition-colors peer-checked:border-primary peer-checked:bg-primary peer-disabled:cursor-not-allowed peer-disabled:opacity-60"
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 size-5 rounded-full bg-background shadow-sm transition-transform ${
-                    includeStamp ? "translate-x-5" : "translate-x-0"
-                  }`}
-                />
-              </span>
-            </Label>
+              </Label>
+              <Switch
+                ref={includeStampSwitchRef}
+                id="include-stamp"
+                checked={includeStamp}
+                disabled={submitting}
+                onCheckedChange={setIncludeStamp}
+                aria-label="Include Stamp"
+                className="cursor-pointer"
+              />
+            </div>
 
             <div className="space-y-2.5">
               <Label className="flex items-center gap-2 text-sm font-medium">
