@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { getAuth } from "firebase/auth";
 import { doc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
@@ -63,26 +62,6 @@ function isPdfFile(file: File) {
   );
 }
 
-function getOrdinalSuffix(day: number) {
-  if (day >= 11 && day <= 13) return "th";
-  switch (day % 10) {
-    case 1:
-      return "st";
-    case 2:
-      return "nd";
-    case 3:
-      return "rd";
-    default:
-      return "th";
-  }
-}
-
-function formatStampPreviewDate(date: Date) {
-  const month = date.toLocaleString("en-US", { month: "long" });
-  const day = date.getDate();
-  return `${month} ${day}${getOrdinalSuffix(day)}, ${date.getFullYear()}`;
-}
-
 export function NewSplitModal({
   receiverNames,
   vendors,
@@ -117,10 +96,6 @@ export function NewSplitModal({
   }>({});
   const [submitting, setSubmitting] = React.useState(false);
   const [isDragActive, setIsDragActive] = React.useState(false);
-  const stampPreviewDate = React.useMemo(
-    () => formatStampPreviewDate(new Date()),
-    [],
-  );
 
   const handleSelectedFile = React.useCallback((nextFile: File | null) => {
     setFile(nextFile);
@@ -446,36 +421,9 @@ export function NewSplitModal({
                       <CircleHelp className="size-4" />
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent
-                    side="top"
-                    className="max-w-80 border border-border/80 bg-popover p-2.5 text-popover-foreground shadow-lg"
-                  >
-                    <div className="space-y-2">
-                      <div className="space-y-1 text-xs leading-5">
-                        <p>Puts a stamp on each subsplit with:</p>
-                        <div className="rounded-md border border-border/70 bg-background px-2 py-1.5 font-mono text-[11px] leading-5 text-foreground">
-                          <p>
-                            Received by:{" "}
-                            <span className="font-semibold text-red-600">
-                              {receivedByName || "selected receiver"}
-                            </span>
-                          </p>
-                          <p>
-                            Date received:{" "}
-                            <span className="font-semibold">
-                              {stampPreviewDate}
-                            </span>
-                          </p>
-                        </div>
-                      </div>
-                      <Image
-                        src="/images/stamp-example.png"
-                        alt="Example of the received stamp added to a split document"
-                        width={1128}
-                        height={872}
-                        className="h-36 w-72 max-w-full rounded-md border border-border/70 bg-background object-cover object-left-top"
-                      />
-                    </div>
+                  <TooltipContent side="top" className="max-w-64">
+                    Stamps each subsplit image with a Received by: and the
+                    current date received at the top of each page.
                   </TooltipContent>
                 </Tooltip>
               </span>
@@ -502,7 +450,7 @@ export function NewSplitModal({
                   isDragActive
                     ? "border-primary/70 bg-primary/5"
                     : file
-                      ? "border-sky-500/70 bg-sky-50/45 shadow-[0_0_0_1px_rgba(14,165,233,0.14)]"
+                      ? "border-primary/40 bg-background"
                       : "border-border/80 bg-background hover:border-muted-foreground/45"
                 }`}
                 onDragOver={handleDragOver}
@@ -528,14 +476,14 @@ export function NewSplitModal({
                       <img
                         src={imagePreviewUrl}
                         alt="Selected file preview"
-                        className="size-14 shrink-0 rounded-md border border-sky-200 object-cover"
+                        className="size-14 shrink-0 rounded-md border border-border/70 object-cover"
                       />
                     ) : (
-                      <div className="flex size-14 shrink-0 items-center justify-center rounded-md border border-sky-200 bg-sky-50">
+                      <div className="flex size-14 shrink-0 items-center justify-center rounded-md border border-border/70 bg-muted/35">
                         {isPdfFile(file) ? (
-                          <FileText className="size-5 text-sky-600" />
+                          <FileText className="size-5 text-muted-foreground" />
                         ) : (
-                          <FileImage className="size-5 text-sky-600" />
+                          <FileImage className="size-5 text-muted-foreground" />
                         )}
                       </div>
                     )}
@@ -544,8 +492,8 @@ export function NewSplitModal({
                       <p className="truncate text-sm font-medium text-foreground">
                         {file.name}
                       </p>
-                      <p className="mt-1 text-xs font-medium text-sky-700">
-                        File selected. Click or drop a file here to replace it.
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Click or drop a file here to replace it.
                       </p>
                     </div>
                   </div>
