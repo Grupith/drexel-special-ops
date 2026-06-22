@@ -786,7 +786,9 @@ export default function SplitViewPage() {
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-col gap-2 md:min-w-80">
+        {/* Split Status */}
+
+        <div className="flex shrink-0 flex-col gap-2 md:min-w-100">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
               <span

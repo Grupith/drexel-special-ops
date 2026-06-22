@@ -29,6 +29,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  CircleHelp,
   FileImage,
   FileText,
   FolderUp,
@@ -391,7 +397,10 @@ export function NewSplitModal({
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-4 rounded-lg border border-border/80 bg-background px-3 py-3">
+            <Label
+              htmlFor="include-stamp"
+              className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border border-border/80 bg-background px-3 py-3 text-sm font-medium leading-5"
+            >
               <input
                 id="include-stamp"
                 type="checkbox"
@@ -400,15 +409,26 @@ export function NewSplitModal({
                 onChange={(event) => setIncludeStamp(event.target.checked)}
                 className="peer sr-only"
               />
-              <Label
-                htmlFor="include-stamp"
-                className="cursor-pointer text-sm font-medium leading-5"
-              >
+              <span className="flex items-center gap-2">
                 Include Stamp
-              </Label>
-              <Label
-                htmlFor="include-stamp"
-                aria-label="Include Stamp"
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      aria-label="Include stamp details"
+                      className="inline-flex size-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
+                      tabIndex={0}
+                    >
+                      <CircleHelp className="size-4" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-64">
+                    Stamps each subsplit image with a Received by: and the
+                    current date received at the top of each page.
+                  </TooltipContent>
+                </Tooltip>
+              </span>
+              <span
+                aria-hidden="true"
                 className="relative h-6 w-11 shrink-0 cursor-pointer rounded-full border border-border bg-muted transition-colors peer-checked:border-primary peer-checked:bg-primary peer-disabled:cursor-not-allowed peer-disabled:opacity-60"
               >
                 <span
@@ -416,8 +436,8 @@ export function NewSplitModal({
                     includeStamp ? "translate-x-5" : "translate-x-0"
                   }`}
                 />
-              </Label>
-            </div>
+              </span>
+            </Label>
 
             <div className="space-y-2.5">
               <Label className="flex items-center gap-2 text-sm font-medium">
