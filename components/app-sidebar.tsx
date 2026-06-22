@@ -109,8 +109,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     null,
   );
   const [isDeleting, setIsDeleting] = React.useState(false);
-  const [deletingSplitId, setDeletingSplitId] = React.useState<string | null>(
-    null,
+  const [hiddenSplitIds, setHiddenSplitIds] = React.useState<Set<string>>(
+    () => new Set(),
   );
 
   const [feedbackOpen, setFeedbackOpen] = React.useState(false);
@@ -120,11 +120,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [feedbackMessage, setFeedbackMessage] = React.useState("");
   const [isSubmittingFeedback, setIsSubmittingFeedback] = React.useState(false);
 
-  if (!user) {
-    return null;
-  }
-
   React.useEffect(() => {
+    if (!user) {
+      setRecentSplits([]);
+      setLoadingSplits(false);
+      return;
+    }
+
     const splitsQuery = query(
       collection(db, "splits"),
       where("createdBy", "==", user.uid),
@@ -156,25 +158,37 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     );
 
     return () => unsubscribe();
-  }, [user.uid]);
+  }, [user]);
 
   const handleDeleteSplit = async () => {
     if (!splitToDelete) return;
 
+    const splitId = splitToDelete.id;
+
     try {
       setIsDeleting(true);
-      setDeletingSplitId(splitToDelete.id);
-      await deleteSplitCallable({ splitId: splitToDelete.id });
+      setHiddenSplitIds((currentHiddenSplitIds) => {
+        const nextHiddenSplitIds = new Set(currentHiddenSplitIds);
+        nextHiddenSplitIds.add(splitId);
+        return nextHiddenSplitIds;
+      });
       setSplitToDelete(null);
+      await deleteSplitCallable({ splitId });
     } catch (error) {
       console.error("Failed to delete split:", error);
-      setDeletingSplitId(null);
+      setHiddenSplitIds((currentHiddenSplitIds) => {
+        const nextHiddenSplitIds = new Set(currentHiddenSplitIds);
+        nextHiddenSplitIds.delete(splitId);
+        return nextHiddenSplitIds;
+      });
     } finally {
       setIsDeleting(false);
     }
   };
 
   const handleSubmitFeedback = async () => {
+    if (!user) return;
+
     const trimmedMessage = feedbackMessage.trim();
 
     if (!trimmedMessage) {
@@ -209,22 +223,39 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   };
 
   const navUser = {
-    name: user.displayName ?? "User",
-    email: user.email ?? "",
-    avatar: user.photoURL ?? "/avatars/default.jpg",
+    name: user?.displayName ?? "User",
+    email: user?.email ?? "",
+    avatar: user?.photoURL ?? "/avatars/default.jpg",
   };
 
+  const visibleRecentSplits = React.useMemo(
+    () => recentSplits.filter((split) => !hiddenSplitIds.has(split.id)),
+    [recentSplits, hiddenSplitIds],
+  );
+
   React.useEffect(() => {
-    if (!deletingSplitId) return;
+    if (hiddenSplitIds.size === 0) return;
 
-    const splitStillExists = recentSplits.some(
-      (split) => split.id === deletingSplitId,
-    );
+    const recentSplitIds = new Set(recentSplits.map((split) => split.id));
 
-    if (!splitStillExists) {
-      setDeletingSplitId(null);
-    }
-  }, [recentSplits, deletingSplitId]);
+    setHiddenSplitIds((currentHiddenSplitIds) => {
+      let changed = false;
+      const nextHiddenSplitIds = new Set(currentHiddenSplitIds);
+
+      currentHiddenSplitIds.forEach((splitId) => {
+        if (!recentSplitIds.has(splitId)) {
+          nextHiddenSplitIds.delete(splitId);
+          changed = true;
+        }
+      });
+
+      return changed ? nextHiddenSplitIds : currentHiddenSplitIds;
+    });
+  }, [recentSplits, hiddenSplitIds.size]);
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <>
@@ -245,73 +276,44 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <div className="rounded-md px-2 py-2 text-sm text-muted-foreground">
                   Loading splits...
                 </div>
-              ) : recentSplits.length > 0 ? (
-                recentSplits.map((split) => (
+              ) : visibleRecentSplits.length > 0 ? (
+                visibleRecentSplits.map((split) => (
                   <div
                     key={split.id}
                     className="group flex items-start gap-1 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   >
-                    {(() => {
-                      const isDeletingThisSplit = deletingSplitId === split.id;
-
-                      return (
-                        <>
-                          {isDeletingThisSplit ? (
-                            <div className="flex min-w-0 flex-1 items-start gap-2 px-2 py-2 text-sm opacity-60">
-                              <FolderOpen className="mt-0.5 h-4 w-4 shrink-0" />
-                              <div className="min-w-0">
-                                <div className="truncate font-medium">
-                                  {split.fileName ??
-                                    `Split ${split.id.slice(0, 6)}`}
-                                </div>
-                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                  <span
-                                    className="h-2 w-2 rounded-full bg-destructive"
-                                    aria-hidden="true"
-                                  />
-                                  Deleting...
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <Link
-                              href={`/splitter/${split.id}`}
-                              className="flex min-w-0 flex-1 items-start gap-2 px-2 py-2 text-sm"
-                            >
-                              <FolderOpen className="mt-0.5 h-4 w-4 shrink-0" />
-                              <div className="min-w-0">
-                                <div className="truncate font-medium">
-                                  {split.fileName ??
-                                    `Split ${split.id.slice(0, 6)}`}
-                                </div>
-                                <div className="flex items-center gap-1.5 text-xs capitalize text-muted-foreground">
-                                  <span
-                                    className={`h-2 w-2 rounded-full ${
-                                      split.status === "failed"
-                                        ? "bg-destructive"
-                                        : "bg-sky-500"
-                                    }`}
-                                    aria-hidden="true"
-                                  />
-                                  {split.status ?? "uploaded"}
-                                </div>
-                              </div>
-                            </Link>
-                          )}
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="cursor-pointer mt-1 mr-1 h-8 w-8 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100 disabled:pointer-events-none disabled:opacity-100"
-                            aria-label={`Delete ${split.fileName ?? `Split ${split.id.slice(0, 6)}`}`}
-                            onClick={() => setSplitToDelete(split)}
-                            disabled={isDeletingThisSplit}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </>
-                      );
-                    })()}
+                    <Link
+                      href={`/splitter/${split.id}`}
+                      className="flex min-w-0 flex-1 items-start gap-2 px-2 py-2 text-sm"
+                    >
+                      <FolderOpen className="mt-0.5 h-4 w-4 shrink-0" />
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">
+                          {split.fileName ?? `Split ${split.id.slice(0, 6)}`}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs capitalize text-muted-foreground">
+                          <span
+                            className={`h-2 w-2 rounded-full ${
+                              split.status === "failed"
+                                ? "bg-destructive"
+                                : "bg-sky-500"
+                            }`}
+                            aria-hidden="true"
+                          />
+                          {split.status ?? "uploaded"}
+                        </div>
+                      </div>
+                    </Link>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="cursor-pointer mt-1 mr-1 h-8 w-8 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100 disabled:pointer-events-none disabled:opacity-100"
+                      aria-label={`Delete ${split.fileName ?? `Split ${split.id.slice(0, 6)}`}`}
+                      onClick={() => setSplitToDelete(split)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 ))
               ) : (

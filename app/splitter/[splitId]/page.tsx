@@ -472,7 +472,6 @@ export default function SplitViewPage() {
     previewModalIndex !== null &&
     previewModalIndex < previewableSubSplits.length - 1;
 
-  const previousSplitStatusRef = React.useRef<string | null>(null);
   const highlightedCardRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
@@ -578,24 +577,6 @@ export default function SplitViewPage() {
     hasReceivedSubSplitsSnapshot,
     notFound,
   ]);
-
-  React.useEffect(() => {
-    if (!splitId || !split) return;
-
-    const previousStatus = previousSplitStatusRef.current;
-    const currentStatus = split.status;
-
-    if (previousStatus === null) {
-      previousSplitStatusRef.current = currentStatus;
-      return;
-    }
-
-    if (previousStatus !== "completed" && currentStatus === "completed") {
-      toast.success("Split complete!");
-    }
-
-    previousSplitStatusRef.current = currentStatus;
-  }, [splitId, split?.status]);
 
   React.useEffect(() => {
     if (previewModalIndex === null) return;
@@ -926,18 +907,6 @@ export default function SplitViewPage() {
                 ) : null}
               </div>
 
-              <div className="rounded-2xl border border-dashed bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-                {split.status === "queued"
-                  ? "Your file is uploaded and waiting for processing to begin."
-                  : split.status === "processing"
-                    ? "The document is being analyzed before split previews can be created."
-                    : split.status === "splitting"
-                      ? "Split regions are being identified and prepared into preview cards."
-                      : split.status === "uploading"
-                        ? "Generated split images are being saved and will appear here shortly."
-                        : "Your split previews will appear here as soon as they are ready."}
-              </div>
-
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {Array.from({
                   length: Math.max(
@@ -1017,6 +986,8 @@ export default function SplitViewPage() {
                   </button>
                 ) : null}
               </div>
+
+              {/* Sub-splits grid */}
 
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {subSplits.map((subSplit, index) => {
