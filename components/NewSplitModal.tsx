@@ -309,7 +309,7 @@ export function NewSplitModal({
           if (submitting) e.preventDefault();
         }}
       >
-        <DialogHeader className="shrink-0 gap-2 border-b border-border/70 px-4 py-4 text-left sm:px-6">
+        <DialogHeader className="shrink-0 gap-2 bg-background border-b border-border/70 px-4 py-4 text-left sm:px-6">
           <div className="flex items-center gap-3">
             <div className="flex size-9 items-center justify-center rounded-lg border border-border/80 bg-background text-muted-foreground">
               <ScrollText className="size-4" />
@@ -579,7 +579,7 @@ export function NewSplitModal({
                       Drop a file here or click to browse
                     </p>
                     <p className="mt-1.5 text-xs text-muted-foreground">
-                      JPG, PNG, or PDF
+                      Scanned .PDF documents only.
                     </p>
                   </div>
                 )}

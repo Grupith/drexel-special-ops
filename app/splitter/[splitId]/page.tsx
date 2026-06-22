@@ -148,6 +148,25 @@ function getSplitStatusDescription(status: string) {
   }
 }
 
+function formatHumanDate(date?: Date) {
+  if (!date) return "Pending";
+
+  const day = date.getDate();
+  const suffix =
+    day % 100 >= 11 && day % 100 <= 13
+      ? "th"
+      : day % 10 === 1
+        ? "st"
+        : day % 10 === 2
+          ? "nd"
+          : day % 10 === 3
+            ? "rd"
+            : "th";
+  const month = date.toLocaleString("en-US", { month: "long" });
+
+  return `${month} ${day}${suffix}, ${date.getFullYear()}`;
+}
+
 async function enrichSubSplitWithPreviewUrl(
   subSplit: SubSplitDoc,
 ): Promise<SubSplitDoc> {
@@ -710,11 +729,14 @@ export default function SplitViewPage() {
     masterPreviewUrl ?? split.originalImageUrl?.trim();
   const showPdfPreview = isPdfUrl(originalDocumentUrl);
   const showImagePreview = Boolean(originalDocumentUrl) && !showPdfPreview;
+  const createdLabel = formatHumanDate(split.createdAt?.toDate?.());
+  const commentText = split.comment?.trim();
+  const splitProgressValue = getSplitProgressValue(split.status);
 
   return (
     <div className="mx-auto max-w-screen-2xl p-3 md:p-4 lg:p-5">
-      <div className="mb-4 flex flex-col gap-3 rounded-xl border bg-card/50 px-3 py-3 shadow-sm md:flex-row md:items-center md:justify-between md:px-4">
-        <div className="flex min-w-0 items-start gap-3 md:items-center">
+      <div className="mb-4 grid gap-3 rounded-xl border bg-card/50 p-3 shadow-sm lg:grid-cols-[minmax(0,1fr)_minmax(460px,680px)_minmax(0,1fr)] lg:items-center lg:p-4 xl:grid-cols-[minmax(0,1fr)_minmax(600px,760px)_minmax(0,1fr)]">
+        <div className="flex min-w-0 items-start gap-3 lg:justify-self-start">
           <Link
             href="/dashboard"
             className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-muted-foreground transition hover:bg-muted hover:text-foreground"
@@ -751,65 +773,99 @@ export default function SplitViewPage() {
               </a>
             </div>
 
-            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-              <span>
-                Created{" "}
-                {split.createdAt?.toDate
-                  ? split.createdAt.toDate().toLocaleString()
-                  : "Pending"}
-              </span>
-              {split.comment?.trim() ? (
+            {commentText ? (
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span className="min-w-0 max-w-full truncate">
-                  {split.comment}
+                  {commentText}
                 </span>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
           </div>
         </div>
 
-        {/* Split Status */}
-
-        <div className="flex shrink-0 flex-col gap-2 md:min-w-100">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              <span
-                className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${getStatusStyles(
-                  split.status,
-                )}`}
-              >
-                {[
-                  "uploaded",
-                  "queued",
-                  "processing",
-                  "splitting",
-                  "uploading",
-                ].includes(split.status) ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : split.status === "failed" ? (
-                  <XCircle className="h-4 w-4" />
-                ) : (
-                  <CheckCircle2 className="h-4 w-4" />
-                )}
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">
-                  {getStatusLabel(split.status)}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {getSplitStatusDescription(split.status)}
-                </p>
-              </div>
-            </div>
-
-            <span className="text-xs font-medium text-muted-foreground">
-              {getSplitProgressValue(split.status)}%
-            </span>
+        <div className="grid w-full gap-2 justify-self-center sm:grid-cols-3 lg:grid-cols-[1fr_0.72fr_1.65fr]">
+          <div className="rounded-lg border bg-background/65 px-3 py-2">
+            <p className="text-[11px] font-medium uppercase text-muted-foreground">
+              Date created
+            </p>
+            <p className="mt-1 truncate text-base font-semibold leading-tight">
+              {createdLabel}
+            </p>
           </div>
 
-          <Progress
-            value={getSplitProgressValue(split.status)}
-            className="h-1.5"
-          />
+          <div className="rounded-lg border bg-background/65 px-3 py-2">
+            <p className="text-[11px] font-medium uppercase text-muted-foreground">
+              Split images
+            </p>
+            <div className="mt-1 flex items-end gap-1.5">
+              <span className="text-xl font-semibold leading-none">
+                {previewCount}
+              </span>
+              <span className="text-xs text-muted-foreground">created</span>
+            </div>
+          </div>
+
+          <div className="rounded-lg border bg-background/65 px-3 py-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <span
+                  className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${getStatusStyles(
+                    split.status,
+                  )}`}
+                >
+                  {[
+                    "uploaded",
+                    "queued",
+                    "processing",
+                    "splitting",
+                    "uploading",
+                  ].includes(split.status) ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : split.status === "failed" ? (
+                    <XCircle className="h-4 w-4" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4" />
+                  )}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">
+                    {getStatusLabel(split.status)}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {getSplitStatusDescription(split.status)}
+                  </p>
+                </div>
+              </div>
+
+              <span className="text-xs font-medium text-muted-foreground">
+                {splitProgressValue}%
+              </span>
+            </div>
+
+            <Progress value={splitProgressValue} className="mt-2 h-1.5" />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 lg:justify-self-end">
+          <a
+            href={split.originalImageUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex min-h-9 flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition hover:bg-muted sm:flex-none"
+          >
+            <ExternalLink className="h-4 w-4" />
+            <span>Open original</span>
+          </a>
+          {canPrintAll ? (
+            <button
+              type="button"
+              onClick={handlePrintAll}
+              className="inline-flex min-h-9 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 sm:flex-none"
+            >
+              <Printer className="h-4 w-4" />
+              <span>Print all</span>
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -885,7 +941,7 @@ export default function SplitViewPage() {
         <div className="space-y-5">
           {isActivelyLoadingPreviews ? (
             <>
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm font-medium text-muted-foreground">
                     Split images
@@ -894,17 +950,6 @@ export default function SplitViewPage() {
                     {previewCount} created
                   </span>
                 </div>
-
-                {canPrintAll ? (
-                  <button
-                    type="button"
-                    onClick={handlePrintAll}
-                    className="inline-flex cursor-pointer items-center gap-2 rounded-xl border bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
-                  >
-                    <Printer className="h-4 w-4" />
-                    <span>Print all</span>
-                  </button>
-                ) : null}
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
@@ -965,7 +1010,7 @@ export default function SplitViewPage() {
             </div>
           ) : (
             <>
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm font-medium text-muted-foreground">
                     Split images
@@ -974,17 +1019,6 @@ export default function SplitViewPage() {
                     {previewCount} created
                   </span>
                 </div>
-
-                {canPrintAll ? (
-                  <button
-                    type="button"
-                    onClick={handlePrintAll}
-                    className="inline-flex cursor-pointer items-center gap-2 rounded-xl border bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
-                  >
-                    <Printer className="h-4 w-4" />
-                    <span>Print all</span>
-                  </button>
-                ) : null}
               </div>
 
               {/* Sub-splits grid */}

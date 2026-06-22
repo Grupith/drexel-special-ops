@@ -592,7 +592,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
-            <div className="min-h-36 overflow-hidden rounded-lg border border-yellow-500/50 bg-card p-4 shadow-[0_0_0_1px_rgb(234_179_8/0.10),0_10px_30px_-18px_rgb(234_179_8)]">
+            <div className="min-h-36 overflow-hidden rounded-lg border border-yellow-500/50 bg-yellow-100/70 p-4 shadow-[0_0_0_1px_rgb(234_179_8/0.10),0_10px_30px_-18px_rgb(234_179_8)]">
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-yellow-600/20 bg-yellow-400/20 text-yellow-700 dark:border-yellow-300/20 dark:text-yellow-300">
                   <Award className="h-5 w-5" />
@@ -609,9 +609,9 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            <div className="min-h-36 overflow-hidden rounded-lg border border-border/80 bg-card p-4 shadow-sm">
+            <div className="min-h-36 overflow-hidden rounded-lg border border-border/80 bg-blue-100/70 p-4 shadow-sm">
               <div className="mb-4 flex items-start justify-between gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border/70 bg-secondary text-secondary-foreground">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border/70 bg-blue-200 text-secondary-foreground">
                   <Zap className="h-5 w-5" />
                 </div>
                 <span className="rounded-full border border-border/70 bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground">
@@ -626,9 +626,9 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            <div className="min-h-36 overflow-hidden rounded-lg border border-border/80 bg-card p-4 shadow-sm">
+            <div className="min-h-36 overflow-hidden rounded-lg border border-border/80 bg-purple-100/70 p-4 shadow-sm">
               <div className="mb-4 flex items-start justify-between gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border/70 bg-muted text-foreground">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border/70 bg-purple-200 text-secondary-foreground">
                   <Smile className="h-5 w-5" />
                 </div>
                 <span className="rounded-full border border-border/70 bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground">
@@ -643,9 +643,9 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            <div className="min-h-36 overflow-hidden rounded-lg border border-border/80 bg-card p-4 shadow-sm">
+            <div className="min-h-36 overflow-hidden rounded-lg border border-border/80 bg-green-100/70 p-4 shadow-sm">
               <div className="mb-4 flex items-start justify-between gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border/70 bg-primary text-primary-foreground">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border/70 bg-green-200 text-secondary-foreground">
                   <House className="h-5 w-5" />
                 </div>
                 <span className="rounded-full border border-border/70 bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground">
