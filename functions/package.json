@@ -16,8 +16,10 @@
   "main": "index.js",
   "dependencies": {
     "@google-cloud/vision": "^4.3.3",
+    "@napi-rs/canvas": "^1.0.0",
     "firebase-admin": "^13.6.0",
-    "firebase-functions": "^7.0.0",
+    "firebase-functions": "^7.2.5",
+    "pdfjs-dist": "^6.0.227",
     "sharp": "^0.33.5"
   },
   "devDependencies": {

@@ -31,6 +31,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import {
   FileImage,
+  FileText,
   FolderUp,
   Loader2,
   NotebookPen,
@@ -40,9 +41,20 @@ import {
 
 type VendorOption = { id: string; name: string };
 
+const ALLOWED_FILE_TYPES = ["image/jpeg", "image/png", "application/pdf"];
+const ALLOWED_FILE_EXTENSIONS = ["jpg", "jpeg", "png", "pdf"];
+const ACCEPTED_FILE_TYPES =
+  ".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf";
+
 function getFileExtension(fileName: string) {
   const parts = fileName.split(".");
   return parts.length > 1 ? (parts.pop()?.toLowerCase() ?? "") : "";
+}
+
+function isPdfFile(file: File) {
+  return (
+    file.type === "application/pdf" || getFileExtension(file.name) === "pdf"
+  );
 }
 
 export function NewSplitModal({
@@ -145,18 +157,15 @@ export function NewSplitModal({
         setErrors((prev) => ({ ...prev, file: "Please upload a file" }));
         return;
       }
-
-      const allowedTypes = ["image/jpeg", "image/png"];
-      const allowedExtensions = ["jpg", "jpeg", "png"];
       const fileExtension = getFileExtension(file.name);
 
       if (
-        !allowedTypes.includes(file.type) ||
-        !allowedExtensions.includes(fileExtension)
+        !ALLOWED_FILE_TYPES.includes(file.type) ||
+        !ALLOWED_FILE_EXTENSIONS.includes(fileExtension)
       ) {
         setErrors((prev) => ({
           ...prev,
-          file: "Only JPG and PNG images are allowed.",
+          file: "Only JPG, PNG, and PDF files are allowed.",
         }));
         setSubmitting(false);
         return;
@@ -346,7 +355,7 @@ export function NewSplitModal({
               <div className="space-y-2 sm:space-y-2.5 rounded-[calc(var(--radius)+6px)] p-3 sm:p-4">
                 <Label className="flex items-center gap-2 text-[13px] font-medium sm:text-sm">
                   <FolderUp className="size-4 text-muted-foreground" />
-                  Upload Image
+                  Upload Document
                 </Label>
 
                 <div
@@ -364,7 +373,7 @@ export function NewSplitModal({
                   <Input
                     id="file"
                     type="file"
-                    accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                    accept={ACCEPTED_FILE_TYPES}
                     ref={fileInputRef}
                     disabled={submitting}
                     className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
@@ -384,7 +393,11 @@ export function NewSplitModal({
                         />
                       ) : (
                         <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-muted/40">
-                          <FileImage className="size-5 text-muted-foreground" />
+                          {isPdfFile(file) ? (
+                            <FileText className="size-5 text-muted-foreground" />
+                          ) : (
+                            <FileImage className="size-5 text-muted-foreground" />
+                          )}
                         </div>
                       )}
 
@@ -393,11 +406,13 @@ export function NewSplitModal({
                           {file.name}
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          JPG or PNG image selected. Click or drop to replace.
+                          {isPdfFile(file)
+                            ? "PDF selected. Click or drop to replace."
+                            : "Image selected. Click or drop to replace."}
                         </p>
                         <p className="mt-1 text-[11px] text-muted-foreground">
-                          *Only one image supported for now. For multiple pages,
-                          create a new split.
+                          *Only one page is processed for now. For multiple
+                          pages, create a new split.
                         </p>
                       </div>
                     </div>
@@ -408,16 +423,16 @@ export function NewSplitModal({
                       </div>
 
                       <p className="text-sm font-semibold text-foreground sm:text-base">
-                        Drag and drop your image here
+                        Drag and drop your file here
                       </p>
                       <p className="mt-1.5 text-xs text-muted-foreground sm:text-sm">
                         Or click inside this box to browse
                       </p>
                       <p className="mt-3 text-[11px] text-muted-foreground">
-                        JPG or PNG only
+                        JPG, PNG, or PDF only
                       </p>
                       <p className="mt-1 text-[11px] text-muted-foreground">
-                        *Only one image supported for now. For multiple pages,
+                        *Only one page is processed for now. For multiple pages,
                         create a new split.
                       </p>
                     </div>

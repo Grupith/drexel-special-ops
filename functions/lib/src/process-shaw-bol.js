@@ -51,45 +51,66 @@ const vision = new vision_1.ImageAnnotatorClient();
 // ==================== CONFIG ====================
 const SPLIT_PATH_REGEX = /^splits\/([^/]+)\/original\/([^/]+)\.([^.]+)$/i;
 const SUPPORTED_IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png"]);
+const SUPPORTED_PDF_EXTENSIONS = new Set(["pdf"]);
+const PROCESS_SHAW_BOL_VERSION = "table-border-v6-bottom-border";
 const CONFIG = {
     memory: "2GiB",
     rowMergeTolerance: 12,
     defaultHeaderHeight: 950,
-    headerPadding: 30,
-    rowTopPadding: 52,
-    rowBottomPadding: 24,
-    rowBoundaryPadding: 6,
-    groupTopPadding: 30,
-    groupBottomPadding: 16,
     jpegQuality: 92,
     uploadProgressMaxPercent: 95,
+    landscapeRotationDegrees: 90,
+    pdfRenderScale: 2.5,
+    // ==================== HEADER ====================
+    headerBottomTrim: 4,
+    headerLineSearchAbove: 22,
+    headerLineSearchBelow: 18,
+    headerLineMinDarkRatio: 0.28,
+    headerLineBottomTrim: 1,
+    tableHeaderKeywordYTolerance: 35,
+    // Body / table border detection
+    minBodyStartGapBelowHeader: 0,
+    tableBorderSearchStartGap: -12,
+    tableBorderMinDarkRatio: 0.32,
+    tableBorderDarkPixelThreshold: 95,
+    firstTableBorderFallbackPadding: 2,
+    minRowBoxHeight: 45,
+    maxRowBoxHeight: 420,
+    rowBorderPadding: 2,
+    bottomBorderExtraPadding: 4,
+    nextRowSafetyGap: 0,
+    rowLineYMargin: 10,
+    rowOrderMatchXMax: 520,
+    // Group cropping
+    groupTopPadding: 0,
+    groupBottomPadding: 0,
 };
 // ===============================================
+function clampExtractArea(imageWidth, imageHeight, top, height) {
+    const safeTop = Math.max(0, Math.min(imageHeight - 1, Math.floor(top)));
+    const maxHeight = imageHeight - safeTop;
+    const safeHeight = Math.max(1, Math.min(maxHeight, Math.floor(height)));
+    return {
+        left: 0,
+        top: safeTop,
+        width: imageWidth,
+        height: safeHeight,
+    };
+}
 function getBounds(vertices = []) {
     const validVertices = vertices.filter((v) => typeof v.x === "number" && typeof v.y === "number");
     if (validVertices.length === 0) {
-        return {
-            minX: 0,
-            maxX: 0,
-            minY: 0,
-            maxY: 0,
-            centerX: 0,
-            centerY: 0,
-        };
+        return { minX: 0, maxX: 0, minY: 0, maxY: 0, centerX: 0, centerY: 0 };
     }
     const xs = validVertices.map((v) => v.x);
     const ys = validVertices.map((v) => v.y);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
     return {
-        minX,
-        maxX,
-        minY,
-        maxY,
-        centerX: (minX + maxX) / 2,
-        centerY: (minY + maxY) / 2,
+        minX: Math.min(...xs),
+        maxX: Math.max(...xs),
+        minY: Math.min(...ys),
+        maxY: Math.max(...ys),
+        centerX: (Math.min(...xs) + Math.max(...xs)) / 2,
+        centerY: (Math.min(...ys) + Math.max(...ys)) / 2,
     };
 }
 function normalizeText(text) {
@@ -113,9 +134,7 @@ function getUploadProgressPercent(completed, total) {
         return 80;
     const boundedCompleted = Math.min(Math.max(completed, 0), total);
     const ratio = boundedCompleted / total;
-    const min = 80;
-    const max = CONFIG.uploadProgressMaxPercent;
-    return Math.round(min + ratio * (max - min));
+    return Math.round(80 + ratio * (CONFIG.uploadProgressMaxPercent - 80));
 }
 function buildWordsFromVisionPage(page) {
     const words = [];
@@ -163,8 +182,37 @@ function groupWordsIntoLines(words) {
     }
     return lines.sort((a, b) => a.centerY - b.centerY);
 }
-function findHeaderHeight(lines) {
-    // Prefer the actual table header line (most accurate)
+function findHeaderHeight(lines, words) {
+    const headerWords = words.filter((word) => {
+        const upper = word.text.toUpperCase();
+        return (upper.includes("PALLET") ||
+            upper.includes("ORDER") ||
+            upper.includes("RELEASE") ||
+            upper.includes("SIZE") ||
+            upper.includes("SQY") ||
+            upper.includes("STYLE") ||
+            upper.includes("COLOR") ||
+            upper.includes("ASSIGN") ||
+            upper.includes("#PKGS") ||
+            upper.includes("WGT"));
+    });
+    const tableHeaderCluster = headerWords.find((word) => {
+        const nearbyHeaderWords = headerWords.filter((candidate) => Math.abs(candidate.centerY - word.centerY) <=
+            CONFIG.tableHeaderKeywordYTolerance);
+        const nearbyText = nearbyHeaderWords
+            .map((candidate) => candidate.text.toUpperCase())
+            .join(" ");
+        return (nearbyText.includes("PALLET") &&
+            nearbyText.includes("ORDER") &&
+            nearbyText.includes("RELEASE") &&
+            nearbyText.includes("SIZE"));
+    });
+    if (tableHeaderCluster) {
+        const sameHeaderBand = headerWords.filter((word) => Math.abs(word.centerY - tableHeaderCluster.centerY) <=
+            CONFIG.tableHeaderKeywordYTolerance);
+        const headerBottom = Math.max(...sameHeaderBand.map((word) => word.maxY));
+        return Math.ceil(headerBottom + CONFIG.headerBottomTrim);
+    }
     const tableHeaderLine = lines.find((line) => {
         const upper = line.text.toUpperCase();
         return (upper.includes("PALLET/ROLL") &&
@@ -172,14 +220,54 @@ function findHeaderHeight(lines) {
             upper.includes("#PKGS"));
     });
     if (tableHeaderLine) {
-        return Math.ceil(tableHeaderLine.centerY + 45);
+        return Math.ceil(tableHeaderLine.maxY + CONFIG.headerBottomTrim);
     }
-    // Fallback to "CUSTOMER ORDER INFORMATION"
     const customerOrderInfoLine = lines.find((line) => line.text.toUpperCase().includes("CUSTOMER ORDER INFORMATION"));
-    if (customerOrderInfoLine) {
-        return Math.ceil(customerOrderInfoLine.centerY + 120);
+    return customerOrderInfoLine
+        ? Math.ceil(customerOrderInfoLine.maxY + 85)
+        : CONFIG.defaultHeaderHeight;
+}
+async function refineHeaderHeightByBottomLine(imageBuffer, imageWidth, imageHeight, detectedHeaderHeight) {
+    const searchTop = Math.max(0, detectedHeaderHeight - CONFIG.headerLineSearchAbove);
+    const searchBottom = Math.min(imageHeight, detectedHeaderHeight + CONFIG.headerLineSearchBelow);
+    const searchHeight = searchBottom - searchTop;
+    if (searchHeight <= 0)
+        return detectedHeaderHeight;
+    const raw = await (0, sharp_1.default)(imageBuffer)
+        .extract({
+        left: 0,
+        top: searchTop,
+        width: imageWidth,
+        height: searchHeight,
+    })
+        .greyscale()
+        .raw()
+        .toBuffer();
+    const minDarkPixels = Math.floor(imageWidth * CONFIG.headerLineMinDarkRatio);
+    const darkRows = [];
+    for (let y = 0; y < searchHeight; y++) {
+        let darkPixels = 0;
+        const rowOffset = y * imageWidth;
+        for (let x = 0; x < imageWidth; x++) {
+            if (raw[rowOffset + x] < 80)
+                darkPixels++;
+        }
+        if (darkPixels >= minDarkPixels)
+            darkRows.push(searchTop + y);
     }
-    return CONFIG.defaultHeaderHeight;
+    if (darkRows.length === 0)
+        return detectedHeaderHeight;
+    const selectedY = darkRows.reduce((closest, row) => Math.abs(row - detectedHeaderHeight) <
+        Math.abs(closest - detectedHeaderHeight)
+        ? row
+        : closest);
+    const refinedHeaderHeight = Math.max(1, Math.min(imageHeight, selectedY - CONFIG.headerLineBottomTrim));
+    console.log("Header height refined by bottom line", {
+        detected: detectedHeaderHeight,
+        refined: refinedHeaderHeight,
+        selectedY,
+    });
+    return refinedHeaderHeight;
 }
 function hasPoLikeNumber(text) {
     return /\b[A-Z0-9-]*F\d{4,}\b/i.test(text);
@@ -188,9 +276,8 @@ function isLikelyRowAnchor(line, headerHeight) {
     if (line.centerY <= headerHeight)
         return false;
     const upper = line.text.toUpperCase();
-    if (/\bPO:?\s*[A-Z0-9-]*F\d{4,}\b/i.test(line.text)) {
+    if (/\bPO:?\s*[A-Z0-9-]*F\d{4,}\b/i.test(line.text))
         return true;
-    }
     if (hasPoLikeNumber(line.text) &&
         (upper.includes("INV") ||
             upper.includes("SKU") ||
@@ -240,18 +327,14 @@ function mergeNearbyAnchors(candidates) {
             clusters.push([candidate]);
         }
     }
-    return clusters.map((cluster) => {
-        return [...cluster].sort((a, b) => {
-            const scoreDiff = scoreRowAnchor(b) - scoreRowAnchor(a);
-            if (scoreDiff !== 0)
-                return scoreDiff;
-            const poBiasA = /\bPO:?\s*[A-Z0-9-]*F\d{4,}\b/i.test(a.text) ? 1 : 0;
-            const poBiasB = /\bPO:?\s*[A-Z0-9-]*F\d{4,}\b/i.test(b.text) ? 1 : 0;
-            if (poBiasB !== poBiasA)
-                return poBiasB - poBiasA;
-            return a.centerY - b.centerY;
-        })[0];
-    });
+    return clusters.map((cluster) => [...cluster].sort((a, b) => {
+        const scoreDiff = scoreRowAnchor(b) - scoreRowAnchor(a);
+        if (scoreDiff !== 0)
+            return scoreDiff;
+        const poBiasA = /\bPO:?\s*[A-Z0-9-]*F\d{4,}\b/i.test(a.text) ? 1 : 0;
+        const poBiasB = /\bPO:?\s*[A-Z0-9-]*F\d{4,}\b/i.test(b.text) ? 1 : 0;
+        return poBiasB - poBiasA || a.centerY - b.centerY;
+    })[0]);
 }
 function findRowAnchors(lines, headerHeight) {
     const candidates = lines.filter((line) => isLikelyRowAnchor(line, headerHeight));
@@ -273,198 +356,335 @@ function extractPoFromNearbyLines(lines, anchorY) {
     }
     return "";
 }
-function buildRows(rowAnchors, lines, imageHeight, headerHeight) {
-    const rows = [];
-    for (let i = 0; i < rowAnchors.length; i++) {
-        const anchor = rowAnchors[i];
-        const prevAnchor = rowAnchors[i - 1];
-        const nextAnchor = rowAnchors[i + 1];
-        const poNumber = extractPoFromNearbyLines(lines, anchor.centerY);
-        if (!poNumber) {
-            console.warn(`Row ${i} skipped: No PO number found near PO anchor line`);
-            continue;
-        }
-        const topBoundary = prevAnchor
-            ? Math.floor((prevAnchor.maxY + anchor.minY) / 2)
-            : headerHeight;
-        const bottomBoundary = nextAnchor
-            ? Math.ceil((anchor.maxY + nextAnchor.minY) / 2)
-            : Math.min(imageHeight, anchor.maxY + 180);
-        const minY = Math.max(headerHeight, Math.min(anchor.minY - CONFIG.rowTopPadding, topBoundary - CONFIG.rowBoundaryPadding));
-        const maxY = Math.min(imageHeight, Math.max(anchor.maxY + CONFIG.rowBottomPadding, bottomBoundary + CONFIG.rowBoundaryPadding));
-        if (maxY <= minY + 50) {
-            console.warn(`Row ${i} skipped: invalid crop bounds (${minY}-${maxY}) for anchorY=${anchor.centerY}`);
-            continue;
-        }
-        rows.push({
-            index: i,
-            minY,
-            maxY,
-            po: poNumber,
-            anchorY: anchor.centerY,
-            sourceText: anchor.text,
-        });
+function extractPoFromText(text) {
+    const explicitMatch = text.match(/\bPO:?\s*([A-Z0-9-]*F\d{4,})\b/i);
+    if (explicitMatch)
+        return explicitMatch[1].toUpperCase();
+    const looseMatch = text.match(/\b([A-Z0-9-]*F\d{4,})\b/i);
+    return looseMatch ? looseMatch[1].toUpperCase() : "";
+}
+function extractOrderNumberFromLine(line) {
+    const leftText = normalizeText(line.words
+        .filter((word) => word.centerX <= CONFIG.rowOrderMatchXMax)
+        .map((word) => word.text)
+        .join(" "));
+    const match = leftText.match(/\b\d{5,7}\b/);
+    return match ? match[0] : "";
+}
+function extractOrderNumberFromBox(lines, top, bottom) {
+    const boxLines = lines.filter((line) => line.centerY >= top - CONFIG.rowLineYMargin &&
+        line.centerY <= bottom + CONFIG.rowLineYMargin);
+    for (const line of boxLines) {
+        const orderNumber = extractOrderNumberFromLine(line);
+        if (orderNumber)
+            return orderNumber;
     }
+    return "";
+}
+function extractPoFromBox(lines, top, bottom) {
+    const boxText = normalizeText(lines
+        .filter((line) => line.centerY >= top - CONFIG.rowLineYMargin &&
+        line.centerY <= bottom + CONFIG.rowLineYMargin)
+        .map((line) => line.text)
+        .join(" "));
+    return extractPoFromText(boxText);
+}
+async function findHorizontalTableBorders(imageBuffer, imageWidth, imageHeight, headerHeight) {
+    const searchTop = Math.max(0, Math.min(imageHeight - 1, Math.floor(headerHeight + CONFIG.tableBorderSearchStartGap)));
+    const searchHeight = imageHeight - searchTop;
+    if (searchHeight <= 0)
+        return [];
+    const raw = await (0, sharp_1.default)(imageBuffer)
+        .extract({
+        left: 0,
+        top: searchTop,
+        width: imageWidth,
+        height: searchHeight,
+    })
+        .greyscale()
+        .raw()
+        .toBuffer();
+    const minDarkPixels = Math.floor(imageWidth * CONFIG.tableBorderMinDarkRatio);
+    const darkRows = [];
+    for (let y = 0; y < searchHeight; y++) {
+        let darkPixels = 0;
+        const rowOffset = y * imageWidth;
+        for (let x = 0; x < imageWidth; x++) {
+            if (raw[rowOffset + x] < CONFIG.tableBorderDarkPixelThreshold)
+                darkPixels++;
+        }
+        if (darkPixels >= minDarkPixels)
+            darkRows.push(searchTop + y);
+    }
+    if (darkRows.length === 0)
+        return [];
+    const clusters = [];
+    for (const row of darkRows) {
+        const last = clusters[clusters.length - 1];
+        if (last && row <= last.end + 2) {
+            last.end = row;
+            last.count++;
+        }
+        else {
+            clusters.push({ start: row, end: row, count: 1 });
+        }
+    }
+    const borders = clusters
+        .map((cluster) => Math.round((cluster.start + cluster.end) / 2))
+        .filter((borderY) => borderY >= headerHeight - 12)
+        .sort((a, b) => a - b);
+    const deduped = [];
+    for (const border of borders) {
+        const previous = deduped[deduped.length - 1];
+        if (previous === undefined || border - previous > 12) {
+            deduped.push(border);
+        }
+    }
+    const firstUsableBorder = headerHeight + CONFIG.firstTableBorderFallbackPadding;
+    if (deduped.length === 0 || deduped[0] > firstUsableBorder + 30) {
+        deduped.unshift(firstUsableBorder);
+    }
+    console.log("Detected horizontal table borders", {
+        headerHeight,
+        borderCount: deduped.length,
+        borders: deduped.slice(0, 25),
+    });
+    return deduped;
+}
+function findRowBoxForAnchor(borders, anchorY, imageHeight) {
+    for (let i = 0; i < borders.length - 1; i++) {
+        const top = borders[i];
+        const bottom = borders[i + 1];
+        const height = bottom - top;
+        if (anchorY >= top - 6 &&
+            anchorY <= bottom + 6 &&
+            height >= CONFIG.minRowBoxHeight &&
+            height <= CONFIG.maxRowBoxHeight) {
+            return { top, bottom };
+        }
+    }
+    const previousBorder = [...borders]
+        .reverse()
+        .find((border) => border < anchorY);
+    const nextBorder = borders.find((border) => border > anchorY);
+    if (!previousBorder || !nextBorder)
+        return null;
+    const height = nextBorder - previousBorder;
+    if (height < CONFIG.minRowBoxHeight || height > CONFIG.maxRowBoxHeight) {
+        return null;
+    }
+    return { top: previousBorder, bottom: nextBorder };
+}
+async function buildRows(rowAnchors, lines, imageBuffer, imageWidth, imageHeight, headerHeight) {
+    const borders = await findHorizontalTableBorders(imageBuffer, imageWidth, imageHeight, headerHeight);
+    const rowBoxes = borders
+        .slice(0, -1)
+        .map((top, index) => {
+        const bottom = borders[index + 1];
+        return {
+            index,
+            top,
+            bottom,
+            orderNumber: extractOrderNumberFromBox(lines, top, bottom),
+            po: extractPoFromBox(lines, top, bottom),
+        };
+    })
+        .filter((box) => {
+        const height = box.bottom - box.top;
+        return (height >= CONFIG.minRowBoxHeight && height <= CONFIG.maxRowBoxHeight);
+    });
+    const anchorPoByBoxIndex = new Map();
+    for (const anchor of rowAnchors) {
+        const poNumber = extractPoFromNearbyLines(lines, anchor.centerY);
+        if (!poNumber)
+            continue;
+        const box = findRowBoxForAnchor(borders, anchor.centerY, imageHeight);
+        if (!box)
+            continue;
+        const boxIndex = rowBoxes.findIndex((rowBox) => Math.abs(rowBox.top - box.top) <= 4 &&
+            Math.abs(rowBox.bottom - box.bottom) <= 4);
+        if (boxIndex >= 0)
+            anchorPoByBoxIndex.set(boxIndex, poNumber);
+    }
+    for (const [boxIndex, poNumber] of anchorPoByBoxIndex.entries()) {
+        if (!rowBoxes[boxIndex].po)
+            rowBoxes[boxIndex].po = poNumber;
+    }
+    for (let i = 0; i < rowBoxes.length; i++) {
+        if (rowBoxes[i].po || !rowBoxes[i].orderNumber)
+            continue;
+        const nextWithSameOrder = rowBoxes
+            .slice(i + 1)
+            .find((candidate) => candidate.orderNumber === rowBoxes[i].orderNumber && candidate.po);
+        if (nextWithSameOrder) {
+            rowBoxes[i].po = nextWithSameOrder.po;
+        }
+    }
+    for (let i = rowBoxes.length - 1; i >= 0; i--) {
+        if (rowBoxes[i].po || !rowBoxes[i].orderNumber)
+            continue;
+        const previousWithSameOrder = [...rowBoxes]
+            .slice(0, i)
+            .reverse()
+            .find((candidate) => candidate.orderNumber === rowBoxes[i].orderNumber && candidate.po);
+        if (previousWithSameOrder) {
+            rowBoxes[i].po = previousWithSameOrder.po;
+        }
+    }
+    const rows = rowBoxes
+        .filter((box) => box.po)
+        .map((box) => ({
+        index: box.index,
+        minY: Math.max(0, box.top - CONFIG.rowBorderPadding),
+        maxY: Math.min(imageHeight, box.bottom + CONFIG.rowBorderPadding),
+        po: box.po,
+        anchorY: (box.top + box.bottom) / 2,
+        sourceText: `order=${box.orderNumber || "unknown"}`,
+    }))
+        .sort((a, b) => a.minY - b.minY);
+    console.log("Built rows from table borders", {
+        rowCount: rows.length,
+        rowBoxes: rowBoxes.map((box) => ({
+            index: box.index,
+            top: box.top,
+            bottom: box.bottom,
+            orderNumber: box.orderNumber,
+            po: box.po,
+        })),
+        rows: rows.map((row) => ({
+            po: row.po,
+            minY: row.minY,
+            maxY: row.maxY,
+            anchorY: row.anchorY,
+            sourceText: row.sourceText,
+        })),
+    });
     return rows;
 }
-async function deleteExistingSubSplits(splitId, bucketName) {
-    const subSplitsRef = db.collection(`splits/${splitId}/subSplits`);
-    const snapshot = await subSplitsRef.get();
-    if (snapshot.empty)
-        return;
-    const bucket = admin.storage().bucket(bucketName);
-    const batch = db.batch();
-    for (const doc of snapshot.docs) {
-        const imagePath = doc.data().imagePath;
-        if (imagePath) {
-            await bucket
-                .file(imagePath)
-                .delete()
-                .catch((e) => console.warn("Failed to delete old image:", e.message));
+async function renderFirstPdfPageToImageBuffer(pdfBuffer) {
+    const [{ getDocument }, canvasModule] = await Promise.all([
+        import("pdfjs-dist/legacy/build/pdf.mjs"),
+        import("@napi-rs/canvas"),
+    ]);
+    class NodeCanvasFactory {
+        create(width, height) {
+            const canvas = canvasModule.createCanvas(width, height);
+            return { canvas, context: canvas.getContext("2d") };
         }
-        batch.delete(doc.ref);
+        reset(c, w, h) {
+            c.canvas.width = w;
+            c.canvas.height = h;
+        }
+        destroy(c) {
+            c.canvas.width = 0;
+            c.canvas.height = 0;
+        }
     }
-    await batch.commit();
+    const pdfjsDistPath = path.dirname(require.resolve("pdfjs-dist/package.json"));
+    const loadingTask = getDocument({
+        data: new Uint8Array(pdfBuffer),
+        useWorkerFetch: false,
+        disableFontFace: true,
+        disableWorker: true,
+        wasmUrl: `${pdfjsDistPath}/wasm/`,
+        standardFontDataUrl: `${pdfjsDistPath}/standard_fonts/`,
+    });
+    const pdfDocument = await loadingTask.promise;
+    const page = await pdfDocument.getPage(1);
+    const viewport = page.getViewport({ scale: CONFIG.pdfRenderScale });
+    const canvasFactory = new NodeCanvasFactory();
+    const c = canvasFactory.create(Math.ceil(viewport.width), Math.ceil(viewport.height));
+    c.context.fillStyle = "#ffffff";
+    c.context.fillRect(0, 0, c.canvas.width, c.canvas.height);
+    await page.render({
+        canvas: c.canvas,
+        canvasContext: c.context,
+        viewport,
+        background: "#ffffff",
+    }).promise;
+    const buffer = c.canvas.toBuffer("image/png");
+    canvasFactory.destroy(c);
+    return buffer;
 }
 // ==================== MAIN FUNCTION ====================
-exports.processShawBol = functions.storage.onObjectFinalized({
-    region: "us-central1",
-    memory: CONFIG.memory,
-    timeoutSeconds: 300,
-}, async (event) => {
+exports.processShawBol = functions.storage.onObjectFinalized({ region: "us-central1", memory: CONFIG.memory, timeoutSeconds: 300 }, async (event) => {
     const filePath = event.data.name ?? "";
     const bucketName = event.data.bucket ?? "";
     const match = filePath.match(SPLIT_PATH_REGEX);
-    if (!bucketName)
+    if (!bucketName || !match)
         return;
-    if (!match) {
-        console.log(`Ignoring finalized file that does not match split original path: ${filePath}`);
-        return;
-    }
     const splitId = match[1];
     const fileExtension = match[3].toLowerCase();
     const splitRef = db.doc(`splits/${splitId}`);
     const bucket = admin.storage().bucket(bucketName);
     let splitCreatedBy = "";
     const tempFile = path.join(os.tmpdir(), `shaw_bol_${splitId}_${Date.now()}.jpg`);
-    if (!SUPPORTED_IMAGE_EXTENSIONS.has(fileExtension)) {
-        console.warn(`Unsupported master file type for split ${splitId}: ${fileExtension}`);
+    const isSupportedImage = SUPPORTED_IMAGE_EXTENSIONS.has(fileExtension);
+    const isSupportedPdf = SUPPORTED_PDF_EXTENSIONS.has(fileExtension);
+    if (!isSupportedImage && !isSupportedPdf) {
         await splitRef.set(buildStatusPatch("failed", {
             statusLabel: "Failed",
-            statusMessage: `Unsupported file type: .${fileExtension}. Please upload a JPG or PNG image.`,
-            progressPercent: 100,
-            errorMessage: `Unsupported file type: .${fileExtension}`,
+            statusMessage: `Unsupported file type`,
         }), { merge: true });
         return;
     }
     try {
-        // Lock with transaction
         await db.runTransaction(async (tx) => {
             const snap = await tx.get(splitRef);
             if (!snap.exists)
-                throw new Error(`Split document not found: ${splitId}`);
-            const splitData = snap.data() ?? {};
-            const status = splitData.status;
-            splitCreatedBy =
-                typeof splitData.createdBy === "string" ? splitData.createdBy : "";
-            if (status !== undefined &&
-                ["queued", "processing", "splitting", "completed"].includes(status)) {
+                throw new Error(`Split not found`);
+            splitCreatedBy = snap.data()?.createdBy || "";
+            if (["processing", "splitting", "completed"].includes(snap.data()?.status))
                 throw new Error("already_processed");
-            }
-            // Allow initial frontend statuses like "uploading" or "uploaded"
-            // to transition into backend-owned processing statuses.
-            tx.update(splitRef, buildStatusPatch("queued", {
-                statusLabel: "Queued",
-                statusMessage: "Split received and waiting to start.",
-                progressPercent: 5,
-                startedAt: admin.firestore.FieldValue.serverTimestamp(),
-                processedAt: admin.firestore.FieldValue.delete(),
-                completedAt: admin.firestore.FieldValue.delete(),
-                subSplitCount: admin.firestore.FieldValue.delete(),
-                subSplitsGenerated: admin.firestore.FieldValue.delete(),
-                errorMessage: admin.firestore.FieldValue.delete(),
-            }));
+            tx.update(splitRef, buildStatusPatch("queued", { progressPercent: 5 }));
         });
-        if (!splitCreatedBy) {
-            throw new Error(`Split document missing createdBy: ${splitId}`);
-        }
-        console.log(`Starting processing for split ${splitId}`);
-        await splitRef.update(buildStatusPatch("processing", {
-            statusLabel: "Processing",
-            statusMessage: "Preparing image and clearing any previous sub-splits.",
-            progressPercent: 15,
-        }));
-        await deleteExistingSubSplits(splitId, bucketName);
+        await splitRef.update(buildStatusPatch("processing", { progressPercent: 15 }));
         await bucket.file(filePath).download({ destination: tempFile });
-        const imageBuffer = await fs.readFile(tempFile);
-        const metadata = await (0, sharp_1.default)(imageBuffer).metadata();
-        if (!metadata.width || !metadata.height) {
-            throw new Error("Could not determine image dimensions.");
+        let imageBuffer = isSupportedPdf
+            ? await renderFirstPdfPageToImageBuffer(await fs.readFile(tempFile))
+            : await fs.readFile(tempFile);
+        imageBuffer = await (0, sharp_1.default)(imageBuffer)
+            .rotate()
+            .flatten({ background: "#ffffff" })
+            .jpeg({ quality: CONFIG.jpegQuality })
+            .toBuffer();
+        let metadata = await (0, sharp_1.default)(imageBuffer).metadata();
+        if (metadata.width > metadata.height) {
+            imageBuffer = await (0, sharp_1.default)(imageBuffer)
+                .rotate(CONFIG.landscapeRotationDegrees)
+                .flatten({ background: "#ffffff" })
+                .jpeg({ quality: CONFIG.jpegQuality })
+                .toBuffer();
+            metadata = await (0, sharp_1.default)(imageBuffer).metadata();
         }
         const imageWidth = metadata.width;
         const imageHeight = metadata.height;
-        console.log(`Image dimensions: ${imageWidth}x${imageHeight}`);
-        await splitRef.update(buildStatusPatch("splitting", {
-            statusLabel: "Reading rows",
-            statusMessage: "Scanning the document and detecting PO rows.",
-            progressPercent: 45,
-        }));
-        // OCR
+        await splitRef.update(buildStatusPatch("splitting", { progressPercent: 45 }));
         const [result] = await vision.documentTextDetection({
             image: { content: imageBuffer },
+            imageContext: { languageHints: ["en"] },
         });
         const page = result.fullTextAnnotation?.pages?.[0];
         if (!page)
-            throw new Error("No OCR page returned from Vision.");
+            throw new Error("No OCR page returned from Vision");
         const words = buildWordsFromVisionPage(page);
         const lines = groupWordsIntoLines(words);
-        console.log(`OCR complete: ${words.length} words, ${lines.length} lines detected`);
-        const headerHeight = Math.min(findHeaderHeight(lines), imageHeight);
-        console.log(`Detected header height: ${headerHeight}px`);
-        console.log("Candidate anchor lines:", lines
-            .map((line) => ({
-            text: line.text,
-            minY: line.minY,
-            maxY: line.maxY,
-            height: line.maxY - line.minY,
-            centerY: line.centerY,
-            belowHeaderByCenter: line.centerY > headerHeight,
-            hasPoLikeNumber: hasPoLikeNumber(line.text),
-        }))
-            .filter((line) => line.hasPoLikeNumber));
+        const detectedHeaderHeight = Math.min(findHeaderHeight(lines, words), imageHeight);
+        const headerHeight = await refineHeaderHeightByBottomLine(imageBuffer, imageWidth, imageHeight, detectedHeaderHeight);
+        console.log(`Final reusable header height: ${headerHeight}px`);
         const rowAnchors = findRowAnchors(lines, headerHeight);
-        console.log(`Found ${rowAnchors.length} PO row anchors`);
-        console.log("Merged PO row anchors:", rowAnchors.map((a) => ({
-            text: a.text,
-            minY: a.minY,
-            maxY: a.maxY,
-            height: a.maxY - a.minY,
-            centerY: a.centerY,
-            po: extractPoFromNearbyLines(lines, a.centerY),
-        })));
-        if (rowAnchors.length === 0) {
-            throw new Error("Could not find any PO-like row anchors.");
-        }
-        const rows = buildRows(rowAnchors, lines, imageHeight, headerHeight);
-        console.log("Extracted rows:", rows.map((r) => ({
-            po: r.po,
-            minY: r.minY,
-            maxY: r.maxY,
-            height: r.maxY - r.minY,
-            anchorY: r.anchorY,
-            sourceText: r.sourceText,
-        })));
-        console.log("Row anchors:", rowAnchors.map((a) => ({
-            text: a.text,
-            minY: a.minY,
-            maxY: a.maxY,
-            height: a.maxY - a.minY,
-            centerY: a.centerY,
-        })));
+        const rows = await buildRows(rowAnchors, lines, imageBuffer, imageWidth, imageHeight, headerHeight);
         if (rows.length === 0) {
-            throw new Error("No valid rows with PO numbers were detected.");
+            throw new Error("No PO row boxes found from table borders");
         }
-        // Group by PO
+        console.log("PO row grouping summary", {
+            rows: rows.map((row) => ({
+                po: row.po,
+                top: row.minY,
+                bottom: row.maxY,
+                sourceText: row.sourceText,
+            })),
+        });
         const poGroups = new Map();
         rows.forEach((row) => {
             if (!poGroups.has(row.po))
@@ -472,53 +692,52 @@ exports.processShawBol = functions.storage.onObjectFinalized({
             poGroups.get(row.po).push(row);
         });
         const orderedRows = [...rows].sort((a, b) => a.minY - b.minY);
-        console.log(`Found ${poGroups.size} unique PO numbers`);
-        await splitRef.update(buildStatusPatch("uploading", {
-            statusLabel: "Generating splits",
-            statusMessage: `Generating 0 of ${poGroups.size} split images.`,
-            progressPercent: getUploadProgressPercent(0, poGroups.size),
-            subSplitCount: poGroups.size,
-            subSplitsGenerated: 0,
-        }));
+        const firstDetectedRowTop = orderedRows[0]?.minY ?? imageHeight;
         let order = 0;
         for (const [poNumber, group] of poGroups.entries()) {
             order++;
-            const currentOrder = order;
             const subSplitRef = db.collection(`splits/${splitId}/subSplits`).doc();
             const subSplitId = subSplitRef.id;
             group.sort((a, b) => a.minY - b.minY);
-            const poNumberNormalized = normalizePoNumber(poNumber);
+            const safeHeaderHeight = Math.max(1, Math.min(headerHeight, imageHeight));
             const headerBuffer = await (0, sharp_1.default)(imageBuffer)
-                .extract({ left: 0, top: 0, width: imageWidth, height: headerHeight })
+                .extract({
+                left: 0,
+                top: 0,
+                width: imageWidth,
+                height: safeHeaderHeight,
+            })
                 .toBuffer();
-            const firstRowTop = Math.min(...group.map((row) => row.minY));
-            const lastRowBottom = Math.max(...group.map((row) => row.maxY));
-            const lastGroupRow = [...group].sort((a, b) => a.maxY - b.maxY)[group.length - 1];
-            const lastGroupRowIndex = orderedRows.findIndex((row) => row.index === lastGroupRow.index);
+            const firstRowTop = Math.min(...group.map((r) => r.minY));
+            const lastRowBottom = Math.max(...group.map((r) => r.maxY));
+            const lastGroupRowIndex = orderedRows.findIndex((r) => r.index === group[group.length - 1].index);
             const nextRow = lastGroupRowIndex >= 0
                 ? orderedRows[lastGroupRowIndex + 1]
                 : undefined;
-            const naturalGroupBottom = lastRowBottom + CONFIG.groupBottomPadding;
-            const cappedGroupBottom = nextRow
-                ? Math.min(naturalGroupBottom, Math.max(lastRowBottom + 8, nextRow.minY - 10))
-                : naturalGroupBottom;
-            const groupTop = Math.max(0, firstRowTop - CONFIG.groupTopPadding);
-            const groupBottom = Math.min(imageHeight, cappedGroupBottom);
-            const groupHeight = groupBottom - groupTop;
-            if (groupHeight <= 60) {
-                console.warn(`Skipping PO ${poNumber}: continuous group crop too small (${groupHeight})`);
-                continue;
+            let groupTop = Math.max(0, firstRowTop - CONFIG.groupTopPadding);
+            let groupBottom = lastRowBottom + CONFIG.groupBottomPadding;
+            if (nextRow) {
+                groupBottom = Math.min(groupBottom + CONFIG.bottomBorderExtraPadding, nextRow.minY +
+                    CONFIG.rowBorderPadding +
+                    CONFIG.bottomBorderExtraPadding);
             }
-            console.log(`Continuous crop for PO ${poNumber}: ${groupTop} → ${groupBottom} (h=${groupHeight}, rows=${group.length}, nextRowMinY=${nextRow?.minY ?? "none"})`);
+            else {
+                groupBottom += CONFIG.bottomBorderExtraPadding;
+            }
+            groupTop = Math.max(0, Math.min(imageHeight - 1, Math.floor(groupTop)));
+            groupBottom = Math.max(groupTop + 1, Math.min(imageHeight, Math.floor(groupBottom)));
+            if (groupBottom <= groupTop + 1) {
+                console.warn(`PO ${poNumber}: Bad group height, forcing minimum`);
+                groupBottom = Math.min(imageHeight, groupTop + 180);
+            }
+            const groupHeight = Math.max(1, groupBottom - groupTop);
+            const bodyExtractArea = clampExtractArea(imageWidth, imageHeight, groupTop, groupHeight);
+            const bodyTop = safeHeaderHeight;
+            console.log(`Generating sub-split for PO ${poNumber}: headerHeight=${headerHeight}, safeHeaderHeight=${safeHeaderHeight}, bodyTop=${bodyTop}, groupTop=${bodyExtractArea.top}, height=${bodyExtractArea.height}, imageHeight=${imageHeight}, firstRowTop=${firstRowTop}, lastRowBottom=${lastRowBottom}, nextRowTop=${nextRow?.minY ?? "none"}`);
             const bodyBuffer = await (0, sharp_1.default)(imageBuffer)
-                .extract({
-                left: 0,
-                top: groupTop,
-                width: imageWidth,
-                height: groupHeight,
-            })
+                .extract(bodyExtractArea)
                 .toBuffer();
-            const outputHeight = Math.max(headerHeight, groupBottom);
+            const outputHeight = bodyTop + bodyExtractArea.height;
             const subImageBuffer = await (0, sharp_1.default)({
                 create: {
                     width: imageWidth,
@@ -529,68 +748,49 @@ exports.processShawBol = functions.storage.onObjectFinalized({
             })
                 .composite([
                 { input: headerBuffer, top: 0, left: 0 },
-                { input: bodyBuffer, top: groupTop, left: 0 },
+                { input: bodyBuffer, top: bodyTop, left: 0 },
             ])
                 .jpeg({ quality: CONFIG.jpegQuality })
                 .toBuffer();
             const imagePath = `splits/${splitId}/subSplits/${subSplitId}/image.jpg`;
-            const outputFile = bucket.file(imagePath);
-            await outputFile.save(subImageBuffer, {
-                metadata: { contentType: "image/jpeg" },
-            });
-            const imageUrl = buildStorageDownloadUrl(bucketName, imagePath);
+            await bucket
+                .file(imagePath)
+                .save(subImageBuffer, { metadata: { contentType: "image/jpeg" } });
             await subSplitRef.set({
                 poNumber,
-                poNumberNormalized,
+                poNumberNormalized: normalizePoNumber(poNumber),
                 splitCreatedBy,
                 splitId,
-                order: currentOrder,
+                order,
                 rowCount: group.length,
                 imagePath,
-                imageUrl,
+                imageUrl: buildStorageDownloadUrl(bucketName, imagePath),
                 storageBucket: bucketName,
-                cropTop: groupTop,
-                cropBottom: groupBottom,
-                cropHeight: groupHeight,
+                headerHeight: safeHeaderHeight,
+                cropTop: bodyExtractArea.top,
+                cropBottom: bodyExtractArea.top + bodyExtractArea.height,
+                cropHeight: bodyExtractArea.height,
                 outputHeight,
-                sourceStatus: "uploading",
                 status: "generated",
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
-            await splitRef.update(buildStatusPatch("uploading", {
-                statusLabel: "Generating splits",
-                statusMessage: `Generating ${currentOrder} of ${poGroups.size} split images.`,
-                progressPercent: getUploadProgressPercent(currentOrder, poGroups.size),
-                subSplitCount: poGroups.size,
-                subSplitsGenerated: currentOrder,
-                latestGeneratedPo: poNumber,
-            }));
-            console.log(`✅ Created sub-split for PO ${poNumber} (${group.length} rows)`);
         }
         await splitRef.update(buildStatusPatch("completed", {
-            statusLabel: "Completed",
-            statusMessage: `Generated ${poGroups.size} split image${poGroups.size === 1 ? "" : "s"}.`,
             progressPercent: 100,
             subSplitCount: poGroups.size,
             subSplitsGenerated: poGroups.size,
-            processedAt: admin.firestore.FieldValue.serverTimestamp(),
-            completedAt: admin.firestore.FieldValue.serverTimestamp(),
         }));
-        console.log(`✅ Successfully completed split ${splitId} with ${poGroups.size} sub-splits.`);
+        console.log(`✅ Completed split ${splitId} with ${poGroups.size} sub-splits`);
     }
     catch (error) {
-        const message = error.message || "Unknown error";
-        if (message === "already_processed") {
-            console.log(`Split ${splitId} was already being processed.`);
+        if (error.message === "already_processed")
             return;
-        }
-        console.error(`❌ Processing failed for ${splitId}:`, error);
+        console.error(`Processing failed for ${splitId}:`, error);
         await splitRef.set(buildStatusPatch("failed", {
             statusLabel: "Failed",
-            statusMessage: "Split generation failed.",
+            errorMessage: error.message,
             progressPercent: 100,
-            errorMessage: message,
         }), { merge: true });
     }
     finally {
