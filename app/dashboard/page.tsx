@@ -5,13 +5,6 @@ import { useRouter } from "next/navigation";
 
 import { NewSplitModal } from "@/components/NewSplitModal";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   collection,
@@ -411,16 +404,35 @@ export default function DashboardPage() {
         <div className="relative z-50 min-w-0 overflow-visible">
           <div className="relative min-w-0 space-y-4 overflow-visible">
             <div className="min-w-0 space-y-3">
-              <div>
-                <h1 className="mb-2 font-serif text-3xl leading-tight tracking-tight text-foreground sm:text-4xl">
-                  {getGreeting()},{" "}
-                  {getFirstName(userProfile?.displayName || user?.displayName)}!
-                </h1>
-                {memberSinceLabel ? (
-                  <p className="pl-1 text-xs text-muted-foreground sm:text-sm">
-                    Make it a great day!
-                  </p>
-                ) : null}
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h1 className="mb-2 font-serif text-3xl leading-tight tracking-tight text-foreground sm:text-4xl">
+                    {getGreeting()},{" "}
+                    {getFirstName(
+                      userProfile?.displayName || user?.displayName,
+                    )}
+                    !
+                  </h1>
+                  {memberSinceLabel ? (
+                    <p className="pl-1 text-xs text-muted-foreground sm:text-sm">
+                      Make it a great day!
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="flex w-full items-center justify-between gap-4 rounded-lg border border-border/80 bg-card/80 px-4 py-3 shadow-sm sm:w-auto sm:min-w-64">
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Total Splits
+                    </p>
+                    <p className="text-2xl font-semibold leading-none text-foreground">
+                      {totalSplits}
+                    </p>
+                  </div>
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border/80 bg-accent text-accent-foreground">
+                    <Package className="h-5 w-5" />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -565,104 +577,90 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Daily Leaderboard Card */}
+        {/* Daily Leaderboard */}
 
-        <Card className="relative z-0 overflow-hidden rounded-[calc(var(--radius)+6px)] border-border/70 bg-linear-to-br from-card via-card to-primary/10 shadow-sm">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -right-10 top-0 h-28 w-28 rounded-full bg-primary/10 blur-3xl"
-          />
-          <CardHeader className="pb-1">
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-1">
-                <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-                  Daily Leaderboard
-                </CardTitle>
-                <CardDescription>
-                  Today&apos;s totally official receiving team awards.
-                </CardDescription>
-              </div>
-              <div className="rounded-2xl border border-border/80 bg-background/80 p-2.5 text-foreground shadow-sm backdrop-blur-sm">
-                <Award className="h-5 w-5" />
-              </div>
+        <section className="relative z-0 space-y-3">
+          <div className="flex items-end justify-between gap-4">
+            <div className="space-y-1">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Daily Leaderboard
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Today&apos;s totally official receiving team awards.
+              </p>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-xl border border-amber-500/20 bg-linear-to-br from-amber-500/10 via-background/80 to-background/70 p-4 shadow-sm">
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full border border-amber-500/20 bg-amber-500/15 text-amber-600 dark:text-amber-400">
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
+            <div className="min-h-36 overflow-hidden rounded-lg border border-yellow-500/50 bg-card p-4 shadow-[0_0_0_1px_rgb(234_179_8/0.10),0_10px_30px_-18px_rgb(234_179_8)]">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-yellow-600/20 bg-yellow-400/20 text-yellow-700 dark:border-yellow-300/20 dark:text-yellow-300">
                   <Award className="h-5 w-5" />
                 </div>
-                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                  Top Receiver Today
-                </p>
-                <p className="mt-2 text-base font-semibold text-foreground">
-                  {dailyLeaderboard?.topReceiverToday ?? "Loading..."}
-                </p>
+                <span className="rounded-full border border-border/70 bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground">
+                  Steady lead
+                </span>
               </div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Top Receiver Today
+              </p>
+              <p className="mt-2 text-lg font-semibold leading-tight text-foreground">
+                {dailyLeaderboard?.topReceiverToday ?? "Loading..."}
+              </p>
+            </div>
 
-              <div className="rounded-xl border border-sky-500/20 bg-linear-to-br from-sky-500/10 via-background/80 to-background/70 p-4 shadow-sm">
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full border border-sky-500/20 bg-sky-500/15 text-sky-600 dark:text-sky-400">
+            <div className="min-h-36 overflow-hidden rounded-lg border border-border/80 bg-card p-4 shadow-sm">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border/70 bg-secondary text-secondary-foreground">
                   <Zap className="h-5 w-5" />
                 </div>
-                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                  Fastest Scanner
-                </p>
-                <p className="mt-2 text-base font-semibold text-foreground">
-                  {dailyLeaderboard?.fastestScanner ?? "Loading..."}
-                </p>
+                <span className="rounded-full border border-border/70 bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground">
+                  Quick hands
+                </span>
               </div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Fastest Scanner
+              </p>
+              <p className="mt-2 text-lg font-semibold leading-tight text-foreground">
+                {dailyLeaderboard?.fastestScanner ?? "Loading..."}
+              </p>
+            </div>
 
-              <div className="rounded-xl border border-emerald-500/20 bg-linear-to-br from-emerald-500/10 via-background/80 to-background/70 p-4 shadow-sm">
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full border border-emerald-500/20 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+            <div className="min-h-36 overflow-hidden rounded-lg border border-border/80 bg-card p-4 shadow-sm">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border/70 bg-muted text-foreground">
                   <Smile className="h-5 w-5" />
                 </div>
-                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                  In a Great Mood!
-                </p>
-                <p className="mt-2 text-base font-semibold text-foreground">
-                  {dailyLeaderboard?.inAGreatMood ?? "Loading..."}
-                </p>
+                <span className="rounded-full border border-border/70 bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground">
+                  Good energy
+                </span>
               </div>
-              <div className="rounded-xl border border-rose-500/20 bg-linear-to-br from-rose-500/10 via-background/80 to-background/70 p-3 shadow-sm">
-                <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-full border border-rose-500/20 bg-rose-500/15 text-rose-600 dark:text-rose-400">
-                  <House className="h-4 w-4" />
-                </div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                  Wants to buy lunch!
-                </p>
-                <p className="mt-1.5 text-sm font-semibold text-foreground sm:text-base">
-                  {dailyLeaderboard?.wantsToGoHome ?? "Loading..."}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="grid min-w-0 gap-4 lg:grid-cols-3">
-          <Card className="overflow-hidden rounded-[calc(var(--radius)+6px)] border-border/70 bg-linear-to-br from-card via-card to-accent/40 shadow-sm lg:col-span-1">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-1">
-                  <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-                    Total Splits
-                  </CardTitle>
-                  <CardDescription>
-                    Every document batch you&apos;ve submitted.
-                  </CardDescription>
-                </div>
-                <div className="rounded-2xl border border-border/80 bg-background/80 p-2.5 text-foreground shadow-sm backdrop-blur-sm">
-                  <Package className="h-5 w-5" />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-                {totalSplits}
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                In a Great Mood!
               </p>
-            </CardContent>
-          </Card>
-        </div>
+              <p className="mt-2 text-lg font-semibold leading-tight text-foreground">
+                {dailyLeaderboard?.inAGreatMood ?? "Loading..."}
+              </p>
+            </div>
+
+            <div className="min-h-36 overflow-hidden rounded-lg border border-border/80 bg-card p-4 shadow-sm">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border/70 bg-primary text-primary-foreground">
+                  <House className="h-5 w-5" />
+                </div>
+                <span className="rounded-full border border-border/70 bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground">
+                  Lunch hero
+                </span>
+              </div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Wants to Buy Lunch!
+              </p>
+              <p className="mt-2 text-lg font-semibold leading-tight text-foreground">
+                {dailyLeaderboard?.wantsToGoHome ?? "Loading..."}
+              </p>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );

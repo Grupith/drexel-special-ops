@@ -8,8 +8,10 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  ExternalLink,
   Loader2,
   Printer,
+  X,
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -26,7 +28,6 @@ import { getDownloadURL, getStorage, ref } from "firebase/storage";
 
 import { Progress } from "@/components/ui/progress";
 import { db } from "@/lib/firebase/db";
-import { Separator } from "radix-ui";
 
 type SplitDoc = {
   vendorId: string;
@@ -730,26 +731,28 @@ export default function SplitViewPage() {
   const showImagePreview = Boolean(originalDocumentUrl) && !showPdfPreview;
 
   return (
-    <div className="mx-auto max-w-7xl p-4 md:p-6">
-      <Link
-        href="/dashboard"
-        className="mb-4 inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium hover:bg-muted"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back
-      </Link>
-      <div className="mb-6 flex flex-col gap-4 rounded-2xl border bg-muted/40 p-4 md:flex-row md:items-center md:justify-between md:p-5">
-        <div className="min-w-0 space-y-3">
-          <div className="space-y-1">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="relative flex h-3 w-3 shrink-0">
+    <div className="mx-auto max-w-screen-2xl p-3 md:p-4 lg:p-5">
+      <div className="mb-4 flex flex-col gap-3 rounded-xl border bg-card/50 px-3 py-3 shadow-sm md:flex-row md:items-center md:justify-between md:px-4">
+        <div className="flex min-w-0 items-start gap-3 md:items-center">
+          <Link
+            href="/dashboard"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            aria-label="Back to dashboard"
+            title="Back to dashboard"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
                 <span
                   className={`absolute inline-flex h-full w-full animate-ping rounded-full ${
                     split.status === "failed" ? "bg-red-500" : "bg-sky-500"
                   } opacity-75`}
                 />
                 <span
-                  className={`relative inline-flex h-3 w-3 rounded-full ${
+                  className={`relative inline-flex h-2.5 w-2.5 rounded-full ${
                     split.status === "failed" ? "bg-red-500" : "bg-sky-500"
                   }`}
                 />
@@ -761,46 +764,33 @@ export default function SplitViewPage() {
                 className="block min-w-0 cursor-pointer"
                 title="Open original document"
               >
-                <p className="truncate text-3xl font-semibold tracking-tight transition hover:opacity-80 md:text-4xl">
+                <p className="truncate text-xl font-semibold transition hover:opacity-80 md:text-2xl">
                   {split.fileName}
                 </p>
               </a>
             </div>
-            <div className="space-y-1 text-sm text-muted-foreground">
-              <p>
-                Created at:{" "}
+
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              <span>
+                Created{" "}
                 {split.createdAt?.toDate
                   ? split.createdAt.toDate().toLocaleString()
                   : "Pending"}
-              </p>
-              <p>Comments: {split.comment?.trim() ? split.comment : "None"}</p>
+              </span>
+              {split.comment?.trim() ? (
+                <span className="min-w-0 max-w-full truncate">
+                  {split.comment}
+                </span>
+              ) : null}
             </div>
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-col items-stretch gap-3 md:min-w-105 md:flex-row md:items-stretch md:justify-end lg:min-w-130">
-          <div className="flex w-full flex-col justify-center rounded-3xl bg-muted/60 p-4 md:max-w-37.5">
-            <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-              SubSplits Created
-            </p>
-            <p className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">
-              {subSplits.length}
-            </p>
-          </div>
-
-          <div className="w-full rounded-3xl bg-muted/60 p-4 md:max-w-100 lg:max-w-125">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                  Split status
-                </p>
-                <p className="mt-1 text-base font-semibold md:text-lg">
-                  {getStatusLabel(split.status)}
-                </p>
-              </div>
-
-              <div
-                className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl border ${getStatusStyles(
+        <div className="flex shrink-0 flex-col gap-2 md:min-w-80">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <span
+                className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${getStatusStyles(
                   split.status,
                 )}`}
               >
@@ -817,28 +807,35 @@ export default function SplitViewPage() {
                 ) : (
                   <CheckCircle2 className="h-4 w-4" />
                 )}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">
+                  {getStatusLabel(split.status)}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {getSplitStatusDescription(split.status)}
+                </p>
               </div>
             </div>
 
-            <Progress
-              value={getSplitProgressValue(split.status)}
-              className="h-2.5"
-            />
-
-            <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-              <span>{getSplitStatusDescription(split.status)}</span>
-              <span>{getSplitProgressValue(split.status)}%</span>
-            </div>
+            <span className="text-xs font-medium text-muted-foreground">
+              {getSplitProgressValue(split.status)}%
+            </span>
           </div>
+
+          <Progress
+            value={getSplitProgressValue(split.status)}
+            className="h-1.5"
+          />
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)] xl:items-start">
+      <div className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)] 2xl:grid-cols-[260px_minmax(0,1fr)] xl:items-start">
         <div className="space-y-3">
           <p className="text-sm font-medium text-muted-foreground">
             Original Document
           </p>
-          <div className="overflow-hidden rounded-[28px] border bg-muted/20 p-3">
+          <div className="overflow-hidden rounded-xl border bg-muted/20 p-2">
             {showImagePreview && originalDocumentUrl ? (
               <button
                 type="button"
@@ -852,7 +849,7 @@ export default function SplitViewPage() {
                 }
                 className="group block w-full cursor-pointer"
               >
-                <div className="relative aspect-[8.5/11] w-full overflow-hidden rounded-[22px] border bg-background">
+                <div className="relative aspect-[8.5/11] w-full overflow-hidden rounded-lg border bg-background">
                   <img
                     src={originalDocumentUrl}
                     alt={split.fileName}
@@ -867,7 +864,7 @@ export default function SplitViewPage() {
                 </div>
               </button>
             ) : showPdfPreview && originalDocumentUrl ? (
-              <div className="overflow-hidden rounded-[22px] border bg-background">
+              <div className="overflow-hidden rounded-lg border bg-background">
                 <iframe
                   src={`${originalDocumentUrl}#toolbar=0&navpanes=0&scrollbar=0`}
                   title={split.fileName}
@@ -885,7 +882,7 @@ export default function SplitViewPage() {
                 </div>
               </div>
             ) : (
-              <div className="flex aspect-[8.5/11] items-center justify-center rounded-[22px] border bg-background p-6 text-center text-sm text-muted-foreground">
+              <div className="flex aspect-[8.5/11] items-center justify-center rounded-lg border bg-background p-4 text-center text-sm text-muted-foreground">
                 <div>
                   <p>This file type does not have an inline preview yet.</p>
                   <a
@@ -906,9 +903,14 @@ export default function SplitViewPage() {
           {isActivelyLoadingPreviews ? (
             <>
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-medium text-muted-foreground">
-                  Split images
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Split images
+                  </p>
+                  <span className="rounded-full border bg-muted/30 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    {previewCount} created
+                  </span>
+                </div>
 
                 {canPrintAll ? (
                   <button
@@ -934,7 +936,7 @@ export default function SplitViewPage() {
                         : "Your split previews will appear here as soon as they are ready."}
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {Array.from({
                   length: Math.max(
                     subSplits.length,
@@ -947,9 +949,9 @@ export default function SplitViewPage() {
                 }).map((_, index) => (
                   <div
                     key={`split-skeleton-${index}`}
-                    className="overflow-hidden rounded-3xl border bg-card shadow-sm"
+                    className="overflow-hidden rounded-xl border bg-card shadow-sm"
                   >
-                    <div className="flex items-start justify-between gap-3 p-4 pb-3">
+                    <div className="flex items-start justify-between gap-3 p-3 pb-2">
                       <div className="min-w-0 flex-1 space-y-2">
                         <div className="h-4 w-32 animate-pulse rounded-md bg-muted" />
                         <div className="space-y-1.5">
@@ -964,8 +966,8 @@ export default function SplitViewPage() {
                       </div>
                     </div>
 
-                    <div className="w-full px-4 pb-4">
-                      <div className="relative aspect-[8.5/11] w-full overflow-hidden rounded-[20px] border bg-background shadow-sm">
+                    <div className="w-full px-3 pb-3">
+                      <div className="relative aspect-[8.5/11] w-full overflow-hidden rounded-lg border bg-background shadow-sm">
                         <div className="absolute inset-0 animate-pulse bg-muted" />
                       </div>
                     </div>
@@ -993,9 +995,14 @@ export default function SplitViewPage() {
           ) : (
             <>
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-medium text-muted-foreground">
-                  Split images
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Split images
+                  </p>
+                  <span className="rounded-full border bg-muted/30 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    {previewCount} created
+                  </span>
+                </div>
 
                 {canPrintAll ? (
                   <button
@@ -1009,7 +1016,7 @@ export default function SplitViewPage() {
                 ) : null}
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {subSplits.map((subSplit, index) => {
                   const isHighlighted = highlightedSubSplitId === subSplit.id;
 
@@ -1021,13 +1028,13 @@ export default function SplitViewPage() {
                           highlightedCardRef.current = node;
                         }
                       }}
-                      className={`group overflow-hidden rounded-3xl border bg-card text-left shadow-sm transition duration-200 ${isHighlighted ? "border-yellow-400 ring-2 ring-yellow-300/70 shadow-[0_0_0_1px_rgba(250,204,21,0.35)] animate-pulse" : "border-border"}`}
+                      className={`group overflow-hidden rounded-xl border bg-card text-left shadow-sm transition duration-200 ${isHighlighted ? "border-yellow-400 ring-2 ring-yellow-300/70 shadow-[0_0_0_1px_rgba(250,204,21,0.35)] animate-pulse" : "border-border"}`}
                     >
                       <div
-                        className={`flex items-start justify-between gap-3 p-4 pb-3 select-text ${isHighlighted ? "bg-yellow-50" : ""}`}
+                        className={`flex items-start justify-between gap-2 p-3 pb-2 select-text ${isHighlighted ? "bg-yellow-50" : ""}`}
                       >
                         <div className="min-w-0">
-                          <p className="text-base font-semibold wrap-break-word select-text md:text-lg">
+                          <p className="text-sm font-semibold wrap-break-word select-text md:text-base">
                             {subSplit.poNumber
                               ? `PO: ${subSplit.poNumber}`
                               : `Split ${index + 1}`}
@@ -1037,7 +1044,7 @@ export default function SplitViewPage() {
                               Matched from dashboard search
                             </p>
                           ) : null}
-                          <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+                          <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                             {typeof subSplit.sourcePage === "number" ? (
                               <p>{`Source page ${subSplit.sourcePage}`}</p>
                             ) : null}
@@ -1077,7 +1084,7 @@ export default function SplitViewPage() {
                       </div>
 
                       {subSplit.previewImageUrl ? (
-                        <div className="w-full px-4 pb-4">
+                        <div className="w-full px-3 pb-3">
                           <button
                             type="button"
                             onClick={() => {
@@ -1106,7 +1113,7 @@ export default function SplitViewPage() {
                             }}
                             className="block w-full cursor-pointer"
                           >
-                            <div className="relative aspect-[8.5/11] w-full overflow-hidden rounded-[20px] border bg-background shadow-sm transition duration-200 hover:scale-[1.02] hover:shadow-md">
+                            <div className="relative aspect-[8.5/11] w-full overflow-hidden rounded-lg border bg-background shadow-sm transition duration-200 hover:scale-[1.01] hover:shadow-md">
                               <img
                                 src={subSplit.previewImageUrl}
                                 alt={
@@ -1120,8 +1127,8 @@ export default function SplitViewPage() {
                           </button>
                         </div>
                       ) : (
-                        <div className="px-4 pb-4">
-                          <div className="flex aspect-[8.5/11] items-center justify-center rounded-[20px] border border-dashed bg-background p-3 text-center text-sm text-muted-foreground">
+                        <div className="px-3 pb-3">
+                          <div className="flex aspect-[8.5/11] items-center justify-center rounded-lg border border-dashed bg-background p-3 text-center text-sm text-muted-foreground">
                             <div className="flex flex-col items-center gap-2">
                               {(subSplit.status ?? "") === "processing" ? (
                                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -1141,35 +1148,67 @@ export default function SplitViewPage() {
       </div>
       {previewModalImageUrl ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 md:p-6"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-3 md:p-5"
           onClick={closePreviewModal}
         >
-          <div className="flex w-full max-w-6xl flex-col items-center">
+          <div className="flex h-full w-full max-w-screen-2xl flex-col">
             <div
-              className="mb-4 flex w-full max-w-5xl flex-col gap-3 rounded-2xl border border-white/10 bg-background/95 px-4 py-3 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-between"
+              className="mb-3 flex w-full flex-col gap-3 rounded-xl border border-white/10 bg-background/95 px-3 py-3 shadow-lg backdrop-blur md:flex-row md:items-center md:justify-between md:px-4"
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium md:text-base">
-                  {previewModalTitle}
-                </p>
+              <div className="flex min-w-0 flex-1 flex-col gap-2 lg:flex-row lg:items-center">
+                <div className="flex min-w-0 shrink-0 items-center gap-2 lg:max-w-[32rem]">
+                  <p className="truncate text-lg font-semibold md:text-xl">
+                    {previewModalTitle}
+                  </p>
+                  {previewModalIndex !== null ? (
+                    <span className="shrink-0 rounded-full border bg-muted/30 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                      {previewModalIndex + 1} of {previewableSubSplits.length}
+                    </span>
+                  ) : null}
+                </div>
+
                 {previewModalMeta.length > 0 ? (
-                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    {previewModalMeta.map((item) => (
-                      <span key={item}>{item}</span>
-                    ))}
+                  <div className="flex min-w-0 flex-wrap gap-1.5">
+                    {previewModalMeta.map((item) => {
+                      const [label, ...valueParts] = item.split(":");
+                      const value = valueParts.join(":").trim();
+                      const isGeneratedStatus =
+                        label === "Status" && value === "Generated";
+
+                      return (
+                        <div
+                          key={item}
+                          className={`inline-flex min-h-7 max-w-full items-center gap-1.5 rounded-md border bg-muted/20 px-2 py-1 text-xs ${
+                            isGeneratedStatus ? "text-sky-600" : ""
+                          }`}
+                        >
+                          <span className="font-medium text-muted-foreground">
+                            {value ? label : "Detail"}
+                          </span>
+                          {isGeneratedStatus ? (
+                            <Check className="h-3.5 w-3.5 shrink-0" />
+                          ) : null}
+                          <span className="truncate font-semibold">
+                            {value || item}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : null}
               </div>
-              <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap sm:justify-end">
+
+              <div className="flex w-full flex-wrap items-center gap-2 md:w-auto md:flex-nowrap md:justify-end">
                 <a
                   href={previewModalImageUrl}
                   target="_blank"
                   rel="noreferrer"
                   onClick={(event) => event.stopPropagation()}
-                  className="inline-flex min-h-10 items-center justify-center rounded-lg border bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                  className="inline-flex min-h-9 flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition hover:bg-muted md:flex-none"
                 >
-                  Open in new tab
+                  <ExternalLink className="h-4 w-4" />
+                  <span>Open</span>
                 </a>
                 <button
                   type="button"
@@ -1180,22 +1219,40 @@ export default function SplitViewPage() {
                       previewModalTitle || "Split image",
                     );
                   }}
-                  className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+                  className="inline-flex min-h-9 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 md:flex-none"
                 >
                   <Printer className="h-4 w-4" />
-                  Print
+                  <span>Print</span>
                 </button>
+                {canPrintAll ? (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handlePrintAll();
+                    }}
+                    className="inline-flex min-h-9 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition hover:bg-muted md:flex-none"
+                  >
+                    <Printer className="h-4 w-4" />
+                    <span>Print all</span>
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  onClick={closePreviewModal}
-                  className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    closePreviewModal();
+                  }}
+                  className="inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                  aria-label="Close preview"
+                  title="Close preview"
                 >
-                  Close
+                  <X className="h-4 w-4" />
                 </button>
               </div>
             </div>
 
-            <div className="flex w-full max-w-6xl items-center justify-center gap-2 md:gap-4">
+            <div className="grid min-h-0 flex-1 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 md:gap-4">
               <button
                 type="button"
                 onClick={(event) => {
@@ -1206,18 +1263,20 @@ export default function SplitViewPage() {
                   );
                 }}
                 disabled={!canGoToPreviousPreview}
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-background/95 text-foreground shadow-lg backdrop-blur transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-background/95 text-foreground shadow-lg backdrop-blur transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-35 md:h-11 md:w-11"
                 aria-label="Previous split preview"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
 
-              <div className="flex min-w-0 flex-1 items-center justify-center overflow-hidden rounded-[28px] bg-transparent p-2 md:p-4">
+              <div
+                className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/5 p-2 shadow-2xl md:p-3"
+                onClick={(event) => event.stopPropagation()}
+              >
                 <img
                   src={previewModalImageUrl}
                   alt={previewModalTitle}
-                  onClick={(event) => event.stopPropagation()}
-                  className="block h-auto max-h-[calc(100vh-8.5rem)] w-auto max-w-full rounded-[20px] shadow-2xl md:max-h-[calc(100vh-10rem)]"
+                  className="block h-auto max-h-[calc(100vh-7.5rem)] w-auto max-w-full rounded-lg bg-background shadow-xl md:max-h-[calc(100vh-8.25rem)]"
                 />
               </div>
 
@@ -1233,7 +1292,7 @@ export default function SplitViewPage() {
                   );
                 }}
                 disabled={!canGoToNextPreview}
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-background/95 text-foreground shadow-lg backdrop-blur transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-background/95 text-foreground shadow-lg backdrop-blur transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-35 md:h-11 md:w-11"
                 aria-label="Next split preview"
               >
                 <ChevronRight className="h-5 w-5" />
