@@ -109,7 +109,7 @@ export function NewSplitModal({
 
   const [vendorId, setVendorId] = React.useState(defaultVendorId);
   const [receivedByName, setReceivedByName] = React.useState("");
-  const [includeStamp, setIncludeStamp] = React.useState(false);
+  const [includeStamp, setIncludeStamp] = React.useState(true);
   const [file, setFile] = React.useState<File | null>(null);
   const [errors, setErrors] = React.useState<{
     receivedByName?: string;
@@ -470,8 +470,8 @@ export function NewSplitModal({
                     <div className="space-y-2">
                       <div className="space-y-1 text-xs leading-5">
                         <p className="font-semibold">
-                          Places a "Received" stamp on each subsplit document
-                          with the following:
+                          Places a &quot;Received&quot; stamp on each subsplit
+                          document with the following:
                         </p>
                         <div className="rounded-md border border-border/70 bg-background px-2 py-1.5 font-mono text-[11px] leading-5 text-foreground">
                           <p>

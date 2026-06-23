@@ -84,6 +84,11 @@ const data = {
       icon: GalleryVerticalEnd,
     },
     {
+      title: "How to Use",
+      url: "/dashboard/onboarding",
+      icon: FolderOpen,
+    },
+    {
       title: "Settings",
       url: "/settings",
       icon: Settings2,
