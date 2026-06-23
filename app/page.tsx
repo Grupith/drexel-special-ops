@@ -14,7 +14,6 @@ import Image from "next/image";
 import logo from "@/public/drexel-logo.png";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
 import Link from "next/link";
 
 export default function Home() {
@@ -24,7 +23,6 @@ export default function Home() {
   useEffect(() => {
     if (user && !loading) {
       router.push("/dashboard");
-      toast.success("Successfully logged in!");
     }
   }, [user, loading, router]);
 

@@ -61,6 +61,7 @@ const CONFIG = {
   uploadProgressMaxPercent: 95,
   landscapeRotationDegrees: 90,
   pdfRenderScale: 2.5,
+  stampTimeZone: "America/Chicago",
 
   // ==================== HEADER ====================
   headerBottomTrim: 4,
@@ -170,9 +171,18 @@ function getOrdinalSuffix(day: number): string {
 }
 
 function formatStampDate(date: Date): string {
-  const month = date.toLocaleString("en-US", { month: "long" });
-  const day = date.getDate();
-  return `${month} ${day}${getOrdinalSuffix(day)}, ${date.getFullYear()}`;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: CONFIG.stampTimeZone,
+  }).formatToParts(date);
+
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const day = Number(parts.find((part) => part.type === "day")?.value ?? 0);
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+
+  return `${month} ${day}${getOrdinalSuffix(day)}, ${year}`;
 }
 
 function buildStorageDownloadUrl(bucketName: string, filePath: string): string {
