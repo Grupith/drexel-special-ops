@@ -20,6 +20,8 @@ import {
 import { db } from "@/lib/firebase/db";
 import {
   Award,
+  CalendarDays,
+  FileText,
   FilePlus,
   House,
   Package,
@@ -46,6 +48,13 @@ type DailyLeaderboard = {
   fastestScanner: string;
   inAGreatMood: string;
   wantsToGoHome: string;
+};
+
+type LatestSplit = {
+  id: string;
+  fileName: string;
+  receivedByName: string;
+  createdAtLabel: string;
 };
 
 const RECEIVING_TEAM_NAMES = [
@@ -100,18 +109,23 @@ function buildDailyLeaderboard(dateKey: string): DailyLeaderboard {
   };
 }
 
+function formatDashboardDate(value?: Date | null) {
+  if (!value) return "Date unavailable";
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(value);
+}
+
 export default function DashboardPage() {
   const { user, userProfile } = useAuth();
   const router = useRouter();
   const [liveTotalSplits, setLiveTotalSplits] = React.useState<number | null>(
     null,
   );
-  const [mostRecentSplit, setMostRecentSplit] = React.useState<{
-    id: string;
-    fileName?: string | null;
-    vendorId?: string | null;
-    status?: string | null;
-  } | null>(null);
+  const [latestSplits, setLatestSplits] = React.useState<LatestSplit[]>([]);
   const [poSearch, setPoSearch] = React.useState("");
   const [poResults, setPoResults] = React.useState<PoSearchResult[]>([]);
   const [isSearchingPo, setIsSearchingPo] = React.useState(false);
@@ -147,7 +161,7 @@ export default function DashboardPage() {
 
   React.useEffect(() => {
     if (!user?.uid) {
-      setMostRecentSplit(null);
+      setLatestSplits([]);
       return;
     }
 
@@ -155,35 +169,34 @@ export default function DashboardPage() {
       collection(db, "splits"),
       where("createdBy", "==", user.uid),
       orderBy("createdAt", "desc"),
-      limit(1),
+      limit(3),
     );
 
     const unsubscribe = onSnapshot(
       recentSplitQuery,
       (snapshot) => {
-        const doc = snapshot.docs[0];
+        setLatestSplits(
+          snapshot.docs.map((doc) => {
+            const data = doc.data() as {
+              fileName?: string | null;
+              receivedByName?: string | null;
+              createdAt?: { toDate?: () => Date } | null;
+            };
 
-        if (!doc) {
-          setMostRecentSplit(null);
-          return;
-        }
-
-        const data = doc.data() as {
-          fileName?: string | null;
-          vendorId?: string | null;
-          status?: string | null;
-        };
-
-        setMostRecentSplit({
-          id: doc.id,
-          fileName: data.fileName ?? null,
-          vendorId: data.vendorId ?? null,
-          status: data.status ?? null,
-        });
+            return {
+              id: doc.id,
+              fileName: data.fileName ?? "Untitled split",
+              receivedByName: data.receivedByName ?? "Not assigned",
+              createdAtLabel: formatDashboardDate(
+                data.createdAt?.toDate?.() ?? null,
+              ),
+            };
+          }),
+        );
       },
       (error) => {
-        console.error("Failed to subscribe to most recent split:", error);
-        setMostRecentSplit(null);
+        console.error("Failed to subscribe to latest splits:", error);
+        setLatestSplits([]);
       },
     );
 
@@ -660,6 +673,61 @@ export default function DashboardPage() {
               </p>
             </div>
           </div>
+        </section>
+
+        <section className="space-y-3">
+          <div className="flex items-end justify-between gap-4">
+            <div className="space-y-1">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Latest 3 Splits
+              </h2>
+            </div>
+          </div>
+
+          {latestSplits.length > 0 ? (
+            <div className="grid gap-3 md:grid-cols-3">
+              {latestSplits.map((split) => (
+                <button
+                  key={split.id}
+                  type="button"
+                  onClick={() => router.push(`/splitter/${split.id}`)}
+                  className="group cursor-pointer min-h-44 rounded-lg border border-border/80 bg-card/80 p-5 text-left shadow-sm transition-colors hover:border-ring/40 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+                >
+                  <div className="flex h-full flex-col justify-between gap-6">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border/70 bg-accent text-accent-foreground">
+                        <FileText className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0 space-y-2">
+                        <p className="line-clamp-3 text-lg font-semibold leading-snug text-foreground group-hover:text-primary">
+                          {split.fileName}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-border/70 pt-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Received by
+                      </p>
+                      <div className="mt-2 flex items-end justify-between gap-3">
+                        <p className="min-w-0 truncate text-base font-bold leading-tight text-sky-600">
+                          {split.receivedByName}
+                        </p>
+                        <div className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                          <CalendarDays className="h-4 w-4" />
+                          <span>{split.createdAtLabel}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-border/80 bg-card/60 px-4 py-6 text-sm text-muted-foreground">
+              No split files yet.
+            </div>
+          )}
         </section>
       </div>
     </div>

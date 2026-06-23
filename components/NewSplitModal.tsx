@@ -117,6 +117,7 @@ export function NewSplitModal({
     file?: string;
   }>({});
   const [submitting, setSubmitting] = React.useState(false);
+  const [loadingDemoFile, setLoadingDemoFile] = React.useState(false);
   const [isDragActive, setIsDragActive] = React.useState(false);
   const includeStampSwitchRef = React.useRef<HTMLButtonElement | null>(null);
   const includeStampClickDelegatedRef = React.useRef(false);
@@ -159,6 +160,36 @@ export function NewSplitModal({
     },
     [handleSelectedFile, submitting],
   );
+
+  const handleUseDemoFile = React.useCallback(async () => {
+    if (submitting || loadingDemoFile) return;
+
+    setLoadingDemoFile(true);
+    setErrors((prev) => ({ ...prev, file: undefined }));
+
+    try {
+      const res = await fetch("/demo/shaw-demo-bol.pdf");
+
+      if (!res.ok) {
+        throw new Error(`Demo PDF request failed with ${res.status}`);
+      }
+
+      const blob = await res.blob();
+      const demoFile = new File([blob], "demo-shaw-bol.pdf", {
+        type: "application/pdf",
+      });
+
+      handleSelectedFile(demoFile);
+    } catch (error) {
+      console.error("Failed to load demo PDF:", error);
+      setErrors((prev) => ({
+        ...prev,
+        file: "Could not load the demo PDF. Please try again.",
+      }));
+    } finally {
+      setLoadingDemoFile(false);
+    }
+  }, [handleSelectedFile, loadingDemoFile, submitting]);
 
   const imagePreviewUrl = React.useMemo(() => {
     if (!file || !file.type.startsWith("image/")) return null;
@@ -588,6 +619,26 @@ export function NewSplitModal({
                 <span>Only one file can be uploaded.</span>
                 <span>One page is processed per split.</span>
               </div>
+              {!file || loadingDemoFile ? (
+                <div className="space-y-1">
+                  <Button
+                    type="button"
+                    variant="link"
+                    disabled={submitting || loadingDemoFile}
+                    onClick={handleUseDemoFile}
+                    className="h-auto cursor-pointer p-0 text-sm font-medium text-sky-600 disabled:cursor-not-allowed"
+                  >
+                    {loadingDemoFile ? (
+                      <span className="inline-flex items-center gap-2">
+                        <Loader2 className="size-3.5 animate-spin" />
+                        Loading demo...
+                      </span>
+                    ) : (
+                      "+ Test out with demo SHAW BOL.pdf"
+                    )}
+                  </Button>
+                </div>
+              ) : null}
               {errors.file ? (
                 <p className="text-sm text-destructive">{errors.file}</p>
               ) : null}
