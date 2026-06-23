@@ -25,5 +25,50 @@ service cloud.firestore {
       allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
       allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
+
+    // Combi Control game profiles - no auth required for the arcade start menu.
+    match /gamePlayers/{playerId} {
+      allow read: if true;
+      allow create: if playerId == request.resource.data.normalizedName
+        && request.resource.data.keys().hasOnly([
+          "name",
+          "normalizedName",
+          "createdAt",
+          "lastPlayedAt"
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.normalizedName is string
+        && request.resource.data.normalizedName.size() > 0
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.lastPlayedAt == request.time;
+      allow update: if request.resource.data.diff(resource.data).changedKeys().hasOnly(["lastPlayedAt"])
+        && request.resource.data.lastPlayedAt == request.time;
+      allow delete: if false;
+    }
+
+    // Combi Control scores - no auth required; scores are append-only.
+    match /gameScores/{scoreId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly([
+          "game",
+          "playerId",
+          "playerName",
+          "score",
+          "dateKey",
+          "createdAt"
+        ])
+        && request.resource.data.game == "combi-control"
+        && request.resource.data.playerId is string
+        && request.resource.data.playerId.size() > 0
+        && request.resource.data.playerName is string
+        && request.resource.data.playerName.size() > 0
+        && request.resource.data.score is int
+        && request.resource.data.score > 0
+        && request.resource.data.dateKey is string
+        && request.resource.data.dateKey.matches("^\\d{4}-\\d{2}-\\d{2}$")
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
   }
 }
