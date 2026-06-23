@@ -48,6 +48,34 @@
   // ]
   "indexes": [
     {
+      // Required for dashboard latest splits:
+      // createdBy == current user + orderBy createdAt desc.
+      "collectionGroup": "splits",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "createdBy", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      // Required for dashboard PO search across sub-splits.
+      "collectionGroup": "subSplits",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "splitCreatedBy", "order": "ASCENDING" },
+        { "fieldPath": "poNumberNormalized", "order": "ASCENDING" }
+      ]
+    },
+    {
+      // Required for split detail sub-split ordering/search variants.
+      "collectionGroup": "subSplits",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "poNumber", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       // Required for Combi Control daily leaderboard:
       // game == "combi-control" + dateKey == today + orderBy score desc.
       "collectionGroup": "gameScores",

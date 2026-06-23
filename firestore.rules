@@ -9,6 +9,14 @@ service cloud.firestore {
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
+
+    function isSplitOwner(data) {
+      return isAuthenticated()
+        && (
+          data.createdBy == request.auth.uid
+          || data.userId == request.auth.uid
+        );
+    }
     
     // Users collection - users can only access their own profile
     match /users/{userId} {
@@ -20,10 +28,19 @@ service cloud.firestore {
     
     // Splits collection - users can only access their own splits
     match /splits/{splitId} {
-      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
-      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow read: if isSplitOwner(resource.data);
+      allow create: if isSplitOwner(request.resource.data);
+      allow update: if isSplitOwner(resource.data) && isSplitOwner(request.resource.data);
+      allow delete: if isSplitOwner(resource.data);
+
+      match /subSplits/{subSplitId} {
+        allow read: if isAuthenticated()
+          && (
+            resource.data.splitCreatedBy == request.auth.uid
+            || isSplitOwner(get(/databases/$(database)/documents/splits/$(splitId)).data)
+          );
+        allow create, update, delete: if false;
+      }
     }
 
     // Combi Control game profiles - no auth required for the arcade start menu.
