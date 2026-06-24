@@ -20,6 +20,7 @@ import {
 import { db } from "@/lib/firebase/config";
 
 export const COMBI_CONTROL_GAME_ID = "combi-control";
+const LEADERBOARD_DISPLAY_LIMIT = 20;
 
 export type GamePlayer = {
   id: string;
@@ -161,7 +162,32 @@ function topUniquePlayerScores(entries: LeaderboardEntry[]) {
 
   return Array.from(bestByPlayer.values())
     .sort((a, b) => b.score - a.score)
-    .slice(0, 10);
+    .slice(0, LEADERBOARD_DISPLAY_LIMIT);
+}
+
+async function filterScoresForExistingPlayers(entries: LeaderboardEntry[]) {
+  const playerIds = Array.from(
+    new Set(entries.map((entry) => entry.playerId).filter(Boolean))
+  );
+
+  if (playerIds.length === 0) {
+    return [];
+  }
+
+  const playerChecks = await Promise.all(
+    playerIds.map(async (playerId) => {
+      const playerSnapshot = await getDoc(doc(db, "gamePlayers", playerId));
+
+      return [playerId, playerSnapshot.exists()] as const;
+    })
+  );
+  const existingPlayerIds = new Set(
+    playerChecks
+      .filter(([, playerExists]) => playerExists)
+      .map(([playerId]) => playerId)
+  );
+
+  return entries.filter((entry) => existingPlayerIds.has(entry.playerId));
 }
 
 function isIndexBuildingError(error: unknown) {
@@ -191,14 +217,18 @@ async function getFallbackLeaderboards(dateKey: string) {
     getDocs(allTimeFallbackQuery),
   ]);
 
-  return {
-    daily: topUniquePlayerScores(
+  const [dailyEntries, allTimeEntries] = await Promise.all([
+    filterScoresForExistingPlayers(
       dailySnapshot.docs
         .filter((scoreDoc) => scoreDoc.data().game === COMBI_CONTROL_GAME_ID)
         .map(mapScoreDoc)
-        .filter((entry) => entry.playerId && entry.playerName)
     ),
-    allTime: topUniquePlayerScores(allTimeSnapshot.docs.map(mapScoreDoc)),
+    filterScoresForExistingPlayers(allTimeSnapshot.docs.map(mapScoreDoc)),
+  ]);
+
+  return {
+    daily: topUniquePlayerScores(dailyEntries),
+    allTime: topUniquePlayerScores(allTimeEntries),
   };
 }
 
@@ -225,9 +255,14 @@ export async function getCombiControlLeaderboards() {
       getDocs(allTimeQuery),
     ]);
 
+    const [dailyEntries, allTimeEntries] = await Promise.all([
+      filterScoresForExistingPlayers(dailySnapshot.docs.map(mapScoreDoc)),
+      filterScoresForExistingPlayers(allTimeSnapshot.docs.map(mapScoreDoc)),
+    ]);
+
     return {
-      daily: topUniquePlayerScores(dailySnapshot.docs.map(mapScoreDoc)),
-      allTime: topUniquePlayerScores(allTimeSnapshot.docs.map(mapScoreDoc)),
+      daily: topUniquePlayerScores(dailyEntries),
+      allTime: topUniquePlayerScores(allTimeEntries),
     };
   } catch (error) {
     if (isIndexBuildingError(error)) {

@@ -1,7 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Loader2, Play, Plus, RotateCcw, Search } from "lucide-react";
+import {
+  ArrowLeft,
+  Crown,
+  Keyboard,
+  Loader2,
+  MousePointerClick,
+  Play,
+  Plus,
+  RotateCcw,
+  Search,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,10 +65,10 @@ const OBSTACLE_KINDS: ObstacleKind[] = [
   "millworkBunk",
 ];
 const GAME_OVER_MESSAGES = [
-  "You clipped the door rack.",
-  "You hit the pallet racking.",
-  "Forklift inspection required.",
-  "Shift ended.",
+  "You clipped the door rack. But no one saw it ;)",
+  "You bent the pallet racking. Opies Mad! ",
+  'You probably "forgot" to do a forklift inspection again.',
+  "Your being pelted with addons! You need to slow down.",
 ];
 
 function createForklift(): Forklift {
@@ -407,34 +417,34 @@ function drawGame(
 
 function getLeaderboardRowClass(index: number) {
   if (index === 0) {
-    return "border-amber-300/70 bg-amber-100/50 shadow-sm";
+    return "border-amber-400 bg-gradient-to-br from-amber-50 via-yellow-50 to-background shadow-[0_14px_34px_rgba(217,119,6,0.18)]";
   }
 
   if (index === 1) {
-    return "border-slate-300/70 bg-slate-100/55";
+    return "border-slate-300 bg-slate-50";
   }
 
   if (index === 2) {
-    return "border-orange-300/70 bg-orange-100/45";
+    return "border-orange-300 bg-orange-50";
   }
 
-  return "border-border bg-background/70";
+  return "border-border/70 bg-background";
 }
 
 function getLeaderboardRankClass(index: number) {
   if (index === 0) {
-    return "border-amber-300 bg-amber-200 text-amber-950";
+    return "border-amber-300 bg-amber-100 text-amber-950";
   }
 
   if (index === 1) {
-    return "border-slate-300 bg-slate-200 text-slate-800";
+    return "border-slate-300 bg-slate-100 text-slate-800";
   }
 
   if (index === 2) {
-    return "border-orange-300 bg-orange-200 text-orange-950";
+    return "border-orange-300 bg-orange-100 text-orange-950";
   }
 
-  return "border-border bg-muted text-muted-foreground";
+  return "border-border bg-muted/60 text-muted-foreground";
 }
 
 function LeaderboardList({
@@ -472,30 +482,88 @@ function LeaderboardList({
   }
 
   return (
-    <ol className="space-y-1.5">
-      {entries.map((entry, index) => (
-        <li
-          key={entry.id}
-          className={`grid grid-cols-[2.25rem_1fr_auto] items-center gap-2 rounded-md border px-3 py-2 text-sm ${getLeaderboardRowClass(
-            index,
-          )}`}
-        >
-          <span
-            className={`flex size-7 items-center justify-center rounded-full border text-xs font-bold ${getLeaderboardRankClass(
+    <ol className="max-h-80 space-y-1 overflow-auto pr-1">
+      {entries.map((entry, index) => {
+        const isChampion = index === 0;
+
+        return (
+          <li
+            key={entry.id}
+            className={`grid items-center gap-2 rounded-md border text-sm ${getLeaderboardRowClass(
               index,
-            )}`}
+            )} ${
+              isChampion
+                ? "grid-cols-[2.75rem_minmax(0,1fr)_auto] px-3 py-3"
+                : "grid-cols-[2rem_minmax(0,1fr)_auto] px-2.5 py-1.5"
+            }`}
           >
-            {index + 1}
-          </span>
-          <span className="truncate font-medium text-foreground">
-            {entry.playerName}
-          </span>
-          <span className="rounded-md bg-card/80 px-2 py-1 font-bold tabular-nums text-foreground">
-            {entry.score}
-          </span>
-        </li>
-      ))}
+            <span
+              className={`flex items-center justify-center rounded-full border font-bold ${getLeaderboardRankClass(
+                index,
+              )} ${isChampion ? "size-9 text-base" : "size-6 text-xs"}`}
+            >
+              {isChampion ? <Crown className="size-4" /> : index + 1}
+            </span>
+            <span className="min-w-0">
+              {isChampion ? (
+                <span className="mb-0.5 block text-[0.65rem] font-black uppercase tracking-[0.16em] text-amber-700">
+                  Current top spot
+                </span>
+              ) : null}
+              <span
+                className={`block truncate text-foreground ${
+                  isChampion ? "text-base font-black" : "font-medium"
+                }`}
+              >
+                {entry.playerName}
+              </span>
+            </span>
+            <span
+              className={`rounded-md font-bold tabular-nums text-foreground ${
+                isChampion
+                  ? "border border-amber-300 bg-amber-100 px-2.5 py-1 text-base shadow-sm"
+                  : "bg-muted/70 px-2 py-0.5"
+              }`}
+            >
+              {entry.score}
+            </span>
+          </li>
+        );
+      })}
     </ol>
+  );
+}
+
+function ControlsCard() {
+  return (
+    <section className="relative overflow-hidden rounded-md border border-border bg-card/95 px-4 py-3 shadow-2xl">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-sky-300" />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-sky-700">
+            Controls
+          </p>
+          <h3 className="text-base font-black tracking-normal text-foreground">
+            Jump
+          </h3>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-sm font-bold text-foreground">
+          <span className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-background px-3 shadow-sm">
+            <Keyboard className="size-4 text-muted-foreground" />
+            <span className="rounded border border-border bg-muted px-2 py-0.5 text-xs font-black uppercase tracking-wide">
+              Space
+            </span>
+          </span>
+          <span className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+            or
+          </span>
+          <span className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-background px-3 shadow-sm">
+            <MousePointerClick className="size-4 text-muted-foreground" />
+            Click
+          </span>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -889,177 +957,189 @@ export function CombiControlGame() {
           }}
         />
 
-        <header className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex items-center justify-between px-4 py-3 sm:px-5">
-          <div className="flex min-w-0 items-center gap-2">
-            <h1 className="shrink-0 rounded-md bg-background/78 px-3 py-1.5 text-base font-semibold tracking-normal text-foreground shadow-sm backdrop-blur-sm sm:text-lg">
-              Combi Control
-            </h1>
-            {selectedPlayer ? (
-              <div className="min-w-0 max-w-[42vw] truncate rounded-md border border-sky-200 bg-sky-50/90 px-3 py-1.5 text-sm font-bold text-sky-700 shadow-sm backdrop-blur-sm sm:max-w-xs sm:text-base">
-                {selectedPlayer.name}
+        {screen === "countdown" || screen === "playing" ? (
+          <header className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex items-center justify-between px-4 py-3 sm:px-5">
+            <div className="flex min-w-0 items-center gap-2">
+              {selectedPlayer ? (
+                <div className="min-w-32 max-w-[42vw] rounded-md bg-background/78 px-3 py-2 text-center shadow-sm backdrop-blur-sm sm:max-w-xs">
+                  <div className="text-[0.68rem] font-black uppercase leading-none tracking-wide text-muted-foreground">
+                    Player
+                  </div>
+                  <div className="mx-auto my-1.5 h-px w-full bg-border/80" />
+                  <div className="truncate text-base font-black leading-none text-foreground sm:text-lg">
+                    {selectedPlayer.name}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+            <div className="min-w-28 rounded-md bg-background/78 px-3 py-2 text-center shadow-sm backdrop-blur-sm">
+              <div className="text-[0.68rem] font-black uppercase leading-none tracking-wide text-amber-900">
+                Aisles Cleared
               </div>
-            ) : null}
-          </div>
-          <div className="rounded-md border border-amber-300 bg-amber-100/90 px-3 py-2 text-right shadow-md backdrop-blur-sm">
-            <div className="text-[0.65rem] font-black uppercase leading-none tracking-wide text-amber-900">
-              Aisles Cleared
+              <div className="mx-auto my-1.5 h-px w-full bg-amber-300/80" />
+              <div className="text-4xl font-black leading-none tabular-nums text-amber-950 sm:text-5xl">
+                {score}
+              </div>
             </div>
-            <div className="mt-1 text-3xl font-black leading-none tabular-nums text-amber-950 sm:text-4xl">
-              {score}
-            </div>
-          </div>
-        </header>
+          </header>
+        ) : null}
 
         {screen === "start" ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/72 px-4 backdrop-blur-[2px]">
-            <div className="relative max-h-[calc(100vh-2rem)] w-full max-w-md overflow-auto rounded-md border-2 border-primary/45 bg-card/95 p-5 shadow-2xl">
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-2 bg-primary" />
-              <div className="mb-5 text-center">
-                <div className="mx-auto w-fit rounded-full border border-amber-300 bg-amber-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-amber-900 shadow-sm">
-                  Forklift Arcade
-                </div>
-                <h2 className="mt-3 text-5xl font-black leading-none tracking-normal text-foreground">
-                  Combi Control
-                </h2>
-                <p className="mx-auto mt-2 max-w-xs text-sm font-semibold text-muted-foreground">
-                  Clear the aisles. Dodge the racks. Keep it moving.
-                </p>
-              </div>
-
-              <div className="space-y-3 rounded-md border border-sky-200 bg-sky-50/70 p-3 shadow-inner">
-                <label
-                  htmlFor="player-search"
-                  className="flex items-center justify-between text-sm font-black uppercase tracking-wide text-sky-800"
-                >
-                  Player Profile
-                  <span className="rounded-full bg-sky-200 px-2 py-0.5 text-xs text-sky-900">
-                    Ready
-                  </span>
-                </label>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-sky-700" />
-                  <Input
-                    id="player-search"
-                    value={playerSearchTerm}
-                    onChange={(event) => {
-                      setPlayerSearchTerm(event.target.value);
-                      setSelectedPlayer(null);
-                    }}
-                    placeholder="Search or create player"
-                    className="border-sky-200 bg-background/95 pl-9 font-semibold"
-                  />
+          <div className="absolute inset-0 flex items-center justify-center bg-black/62 px-4 py-4 backdrop-blur-[3px]">
+            <div className="grid max-h-[calc(100vh-2rem)] w-full max-w-5xl gap-4 overflow-auto md:grid-cols-[minmax(0,25rem)_minmax(18rem,1fr)] md:items-start">
+              <div className="relative rounded-md border border-border bg-card/95 p-6 shadow-2xl">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-primary/70" />
+                <div className="mb-7">
+                  <div className="w-fit rounded-full border border-green-300 bg-green-100 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-green-900 shadow-sm">
+                    Forklift Arcade
+                  </div>
+                  <h2 className="mt-3 text-4xl font-black leading-none tracking-normal text-foreground sm:text-5xl">
+                    Combi Control
+                  </h2>
+                  <p className="mt-2 max-w-xs text-sm text-muted-foreground">
+                    Clear the aisles. Dodge the racks.{" "}
+                    <strong className="font-black text-foreground">
+                      Keep dispatch happy.
+                    </strong>
+                  </p>
                 </div>
 
-                {playerSearchTerm.trim() ? (
-                  <div className="space-y-2">
-                    {playerSearchStatus === "loading" ? (
-                      <div className="flex items-center rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
-                        <Loader2 className="mr-2 size-4 animate-spin" />
-                        Searching
-                      </div>
-                    ) : null}
+                <div className="mb-5 h-px bg-border" />
 
-                    {playerMatches.length > 0 ? (
-                      <div className="max-h-40 overflow-auto rounded-md border border-border bg-card p-1">
-                        {playerMatches.map((player) => (
-                          <button
-                            key={player.id}
-                            type="button"
-                            className="flex w-full items-center justify-between rounded-sm px-3 py-2 text-left text-sm hover:bg-muted"
-                            onClick={() => selectPlayer(player)}
-                          >
-                            <span className="truncate font-medium">
-                              {player.name}
-                            </span>
-                            {selectedPlayer?.id === player.id ? (
-                              <span className="text-xs font-semibold text-primary">
-                                Selected
+                <div className="space-y-4">
+                  <label
+                    htmlFor="player-search"
+                    className="block text-sm font-semibold text-foreground"
+                  >
+                    Player
+                  </label>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="player-search"
+                      value={playerSearchTerm}
+                      onChange={(event) => {
+                        setPlayerSearchTerm(event.target.value);
+                        setSelectedPlayer(null);
+                      }}
+                      placeholder="Search or create player"
+                      className="h-12 bg-background/95 pl-9 font-semibold"
+                    />
+                  </div>
+
+                  {playerSearchTerm.trim() && !selectedPlayer ? (
+                    <div className="space-y-3">
+                      {playerSearchStatus === "loading" ? (
+                        <div className="flex items-center rounded-md border border-border bg-card px-3 py-2.5 text-sm text-muted-foreground">
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                          Searching
+                        </div>
+                      ) : null}
+
+                      {playerMatches.length > 0 ? (
+                        <div className="max-h-40 overflow-auto rounded-md border border-border bg-background p-1 shadow-sm">
+                          {playerMatches.map((player) => (
+                            <button
+                              key={player.id}
+                              type="button"
+                              className="flex w-full items-center justify-between rounded-sm px-3 py-2.5 text-left text-sm hover:bg-muted"
+                              onClick={() => selectPlayer(player)}
+                            >
+                              <span className="truncate font-medium">
+                                {player.name}
                               </span>
-                            ) : null}
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
 
-                    {playerSearchStatus === "idle" &&
-                    playerMatches.length === 0 ? (
-                      <div className="space-y-2 rounded-md border border-dashed border-border bg-card px-3 py-3">
-                        <p className="text-sm text-muted-foreground">
-                          No matching player.
-                        </p>
+                      {playerSearchStatus === "idle" &&
+                      playerMatches.length === 0 ? (
+                        <div className="space-y-3 rounded-md border border-dashed border-border bg-background px-4 py-4">
+                          <p className="text-sm text-muted-foreground">
+                            No matching player.
+                          </p>
+                          <Button
+                            type="button"
+                            className="w-full"
+                            onClick={startGame}
+                            disabled={playerActionStatus === "loading"}
+                          >
+                            {playerActionStatus === "loading" ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <Plus className="size-4" />
+                            )}
+                            Create &quot;{playerSearchTerm.trim()}&quot; and
+                            Start
+                          </Button>
+                        </div>
+                      ) : null}
+
+                      {playerMatches.length > 0 && !selectedPlayer ? (
                         <Button
                           type="button"
+                          variant="outline"
                           className="w-full"
-                          onClick={startGame}
+                          onClick={createOrSelectPlayer}
                           disabled={playerActionStatus === "loading"}
                         >
                           {playerActionStatus === "loading" ? (
                             <Loader2 className="size-4 animate-spin" />
                           ) : (
-                            <Plus className="size-4" />
+                            <Search className="size-4" />
                           )}
-                          Create &quot;{playerSearchTerm.trim()}&quot; and Start
+                          Use This Player
                         </Button>
-                      </div>
-                    ) : null}
+                      ) : null}
+                    </div>
+                  ) : null}
 
-                    {playerMatches.length > 0 && !selectedPlayer ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full"
-                        onClick={createOrSelectPlayer}
-                        disabled={playerActionStatus === "loading"}
-                      >
-                        {playerActionStatus === "loading" ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <Search className="size-4" />
-                        )}
-                        Use This Player
-                      </Button>
-                    ) : null}
-                  </div>
-                ) : null}
+                  {playerError ? (
+                    <p className="text-sm font-medium text-destructive">
+                      {playerError}
+                    </p>
+                  ) : null}
+                </div>
 
-                {selectedPlayer ? (
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Selected: {selectedPlayer.name}
-                  </p>
-                ) : null}
+                <div className="mt-6 h-px bg-border" />
 
-                {playerError ? (
-                  <p className="text-sm font-medium text-destructive">
-                    {playerError}
-                  </p>
-                ) : null}
+                <Button
+                  className="mt-6 h-12 w-full text-base font-black uppercase tracking-wide shadow-md"
+                  size="lg"
+                  onClick={startGame}
+                  disabled={playerActionStatus === "loading"}
+                >
+                  <Play className="size-4" />
+                  Start Shift
+                </Button>
               </div>
 
-              <Button
-                className="mt-5 h-12 w-full text-base font-black uppercase tracking-wide shadow-lg"
-                size="lg"
-                onClick={startGame}
-                disabled={playerActionStatus === "loading"}
-              >
-                <Play className="size-4" />
-                Start Shift
-              </Button>
+              <div className="space-y-4">
+                <ControlsCard />
 
-              <section className="mt-5 space-y-2 rounded-md border border-border bg-background/60 p-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-black uppercase tracking-wide text-foreground">
-                    All-Time Leaderboard
-                  </h3>
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-muted-foreground">
-                    Top 10
-                  </span>
-                </div>
-                <LeaderboardList
-                  entries={allTimeLeaderboard}
-                  status={leaderboardStatus}
-                  error={leaderboardError}
-                />
-              </section>
+                <section className="relative rounded-md border border-border bg-card/95 p-4 shadow-2xl">
+                  <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-amber-300" />
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-700">
+                        High Scores
+                      </p>
+                      <h3 className="text-xl font-black tracking-normal text-foreground">
+                        All-Time Leaderboard
+                      </h3>
+                    </div>
+                    <span className="rounded-full border border-border bg-muted px-2.5 py-1 text-xs font-bold text-muted-foreground">
+                      Top 20
+                    </span>
+                  </div>
+                  <LeaderboardList
+                    entries={allTimeLeaderboard}
+                    status={leaderboardStatus}
+                    error={leaderboardError}
+                  />
+                </section>
+              </div>
             </div>
           </div>
         ) : null}
@@ -1078,87 +1158,106 @@ export function CombiControlGame() {
         ) : null}
 
         {screen === "gameOver" ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/72 px-4 backdrop-blur-[2px]">
-            <div className="relative max-h-[calc(100vh-2rem)] w-full max-w-3xl overflow-auto rounded-md border border-destructive/25 bg-card/95 p-5 shadow-2xl">
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-destructive/75" />
-              <div className="mb-5 text-center">
-                <p className="text-xs font-bold uppercase tracking-[0.24em] text-destructive">
-                  Game Over
-                </p>
-                <div className="mx-auto mt-3 max-w-2xl rounded-md border border-destructive/25 bg-destructive/10 px-4 py-6 shadow-inner">
-                  <h2
-                    className="mx-auto max-w-xl text-balance text-4xl font-black leading-none tracking-normal text-destructive sm:text-6xl"
-                    style={{
-                      fontFamily: '"Comic Sans MS", "Comic Sans", cursive',
-                    }}
-                  >
-                    {gameOverMessage}
-                  </h2>
-                </div>
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  <div className="rounded-md border border-border bg-background px-4 py-3">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/62 px-4 py-4 backdrop-blur-[3px]">
+            <div className="grid max-h-[calc(100vh-2rem)] w-full max-w-6xl gap-4 overflow-auto lg:grid-cols-[minmax(0,1fr)_23rem]">
+              <div className="relative flex min-h-128 flex-col overflow-hidden rounded-md border border-destructive/25 bg-card/95 p-5 text-center shadow-2xl sm:p-6">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-destructive/75" />
+                <div className="grid gap-5">
+                  <div className="px-1 text-center">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Player
                     </p>
-                    <p className="mt-1 truncate text-xl font-bold text-sky-700">
+                    <p className="mt-1 truncate text-xl font-bold text-sky-700 sm:text-2xl">
                       {selectedPlayer?.name ?? "No player selected"}
                     </p>
                   </div>
-                  <div className="rounded-md border border-border bg-muted px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <div className="mx-auto w-full max-w-sm border-y border-border px-5 py-4 text-center">
+                    <p className="text-sm font-black uppercase tracking-[0.18em] text-muted-foreground">
                       Final Score
                     </p>
-                    <p className="mt-1 text-3xl font-black tabular-nums text-foreground">
+                    <p className="mt-2 text-6xl font-black leading-none tabular-nums text-foreground sm:text-7xl">
                       {finalScore}
                     </p>
                   </div>
                 </div>
-                {scoreSaveStatus === "loading" ? (
-                  <p className="mt-3 flex items-center justify-center text-sm text-muted-foreground">
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                    Saving score
-                  </p>
-                ) : null}
-                {scoreSaveError ? (
-                  <p className="mt-3 text-sm font-medium text-destructive">
-                    {scoreSaveError}
-                  </p>
-                ) : null}
+
+                <div className="flex flex-1 items-center justify-center py-5">
+                  <div>
+                    <p className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-destructive">
+                      Game Over
+                    </p>
+                    <h2
+                      className="mx-auto mt-3 max-w-2xl text-balance text-2xl font-bold leading-snug tracking-normal text-foreground sm:text-3xl lg:text-4xl"
+                      style={{
+                        fontFamily: '"Comic Sans MS", "Comic Sans", cursive',
+                      }}
+                    >
+                      &quot;{gameOverMessage}&quot;
+                    </h2>
+                    {scoreSaveStatus === "loading" ? (
+                      <p className="mt-5 flex items-center justify-center text-sm text-muted-foreground">
+                        <Loader2 className="mr-2 size-4 animate-spin" />
+                        Saving score
+                      </p>
+                    ) : null}
+                    {scoreSaveError ? (
+                      <p className="mt-5 text-sm font-medium text-destructive">
+                        {scoreSaveError}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button onClick={startGame}>
+                    <RotateCcw className="size-4" />
+                    Play Again
+                  </Button>
+                  <Button variant="outline" onClick={backToStart}>
+                    <ArrowLeft className="size-4" />
+                    Back to Main Menu
+                  </Button>
+                </div>
               </div>
 
-              <div className="mb-5 grid gap-4 md:grid-cols-2">
-                <section className="space-y-2">
-                  <h3 className="text-sm font-semibold text-foreground">
-                    Today
-                  </h3>
-                  <LeaderboardList
-                    entries={dailyLeaderboard}
-                    status={leaderboardStatus}
-                    error={leaderboardError}
-                  />
-                </section>
-                <section className="space-y-2">
-                  <h3 className="text-sm font-semibold text-foreground">
-                    All Time
-                  </h3>
-                  <LeaderboardList
-                    entries={allTimeLeaderboard}
-                    status={leaderboardStatus}
-                    error={leaderboardError}
-                  />
-                </section>
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-2">
-                <Button onClick={startGame}>
-                  <RotateCcw className="size-4" />
-                  Play Again
-                </Button>
-                <Button variant="outline" onClick={backToStart}>
-                  <ArrowLeft className="size-4" />
-                  Back to Main Menu
-                </Button>
-              </div>
+              <section className="relative rounded-md border border-border bg-card/95 p-4 shadow-2xl">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-amber-300" />
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-700">
+                      Rankings
+                    </p>
+                    <h3 className="text-xl font-black tracking-normal text-foreground">
+                      Leaderboard
+                    </h3>
+                  </div>
+                  <span className="rounded-full border border-border bg-muted px-2.5 py-1 text-xs font-bold text-muted-foreground">
+                    Top 20
+                  </span>
+                </div>
+                <div className="space-y-5">
+                  <section className="space-y-2">
+                    <h4 className="text-sm font-semibold text-foreground">
+                      Today
+                    </h4>
+                    <LeaderboardList
+                      entries={dailyLeaderboard}
+                      status={leaderboardStatus}
+                      error={leaderboardError}
+                    />
+                  </section>
+                  <section className="space-y-2">
+                    <h4 className="text-sm font-semibold text-foreground">
+                      All Time
+                    </h4>
+                    <LeaderboardList
+                      entries={allTimeLeaderboard}
+                      status={leaderboardStatus}
+                      error={leaderboardError}
+                    />
+                  </section>
+                </div>
+              </section>
             </div>
           </div>
         ) : null}
