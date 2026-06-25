@@ -16,6 +16,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   getCombiControlLeaderboards,
   getOrCreateGamePlayer,
@@ -1098,15 +1099,16 @@ export function CombiControlGame() {
 
   return (
     <main className="h-dvh w-screen overflow-hidden bg-background text-foreground">
-      <section
-        className="relative h-full w-full overflow-hidden bg-card"
-        style={{ touchAction: screen === "playing" ? "none" : "auto" }}
-        onPointerDown={handleCanvasPointerDown}
-      >
+      <section className="relative h-full w-full overflow-hidden bg-card">
         <canvas
           ref={canvasRef}
           aria-label="Combi Control game canvas"
-          className="block h-full w-full touch-none select-none bg-muted"
+          className={cn(
+            "block h-full w-full select-none bg-muted",
+            screen === "playing" ? "touch-none" : "touch-auto",
+          )}
+          style={{ touchAction: screen === "playing" ? "none" : "auto" }}
+          onPointerDown={handleCanvasPointerDown}
         />
 
         {screen === "countdown" || screen === "playing" ? (
@@ -1137,7 +1139,7 @@ export function CombiControlGame() {
         ) : null}
 
         {screen === "countdown" ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/50 px-4 backdrop-blur-[2px]">
+          <div className="absolute inset-0 z-20 flex touch-auto items-center justify-center bg-background/50 px-4 backdrop-blur-[2px]">
             <div className="rounded-md bg-background/82 px-8 py-6 text-center shadow-lg backdrop-blur-sm">
               <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                 Get Ready
@@ -1150,7 +1152,7 @@ export function CombiControlGame() {
         ) : null}
 
         {screen === "start" ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/62 px-4 py-4 backdrop-blur-[3px]">
+          <div className="absolute inset-0 z-20 flex touch-auto items-center justify-center bg-black/62 px-4 py-4 backdrop-blur-[3px]">
             <div className="grid max-h-[calc(100dvh-2rem)] w-full max-w-5xl gap-4 overflow-auto md:grid-cols-[minmax(0,25rem)_minmax(18rem,1fr)] md:items-start">
               <div className="relative rounded-md border border-border bg-card/95 p-6 shadow-2xl">
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-primary/70" />
@@ -1287,7 +1289,7 @@ export function CombiControlGame() {
                 <div className="mt-6 h-px bg-border" />
 
                 <Button
-                  className="mt-6 h-12 w-full text-base font-black uppercase tracking-wide shadow-md"
+                  className="mt-6 h-12 w-full text-base font-black cursor-pointer uppercase tracking-wide shadow-md"
                   size="lg"
                   onClick={startGame}
                   disabled={playerActionStatus === "loading"}
@@ -1327,7 +1329,7 @@ export function CombiControlGame() {
         ) : null}
 
         {screen === "gameOver" ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/62 px-4 py-4 backdrop-blur-[3px]">
+          <div className="absolute inset-0 z-20 flex touch-auto items-center justify-center bg-black/62 px-4 py-4 backdrop-blur-[3px]">
             <div className="grid max-h-[calc(100dvh-2rem)] w-full max-w-5xl gap-4 overflow-auto lg:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)] lg:items-stretch">
               <div className="relative flex min-h-136 flex-col overflow-hidden rounded-md border border-destructive/25 bg-card/95 p-5 text-center shadow-2xl sm:p-6">
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-destructive/75" />
@@ -1379,7 +1381,7 @@ export function CombiControlGame() {
 
                 <div className="grid gap-2 sm:grid-cols-2">
                   <Button
-                    className="min-h-12 justify-between"
+                    className="min-h-12 justify-between cursor-pointer"
                     onClick={startGame}
                   >
                     <span className="inline-flex items-center gap-2">
@@ -1391,7 +1393,7 @@ export function CombiControlGame() {
                     </span>
                   </Button>
                   <Button
-                    className="min-h-12"
+                    className="min-h-12 cursor-pointer hover:bg-muted/80"
                     variant="outline"
                     onClick={backToStart}
                   >
