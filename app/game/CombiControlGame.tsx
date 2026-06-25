@@ -8,7 +8,6 @@ import {
   Loader2,
   MousePointerClick,
   Play,
-  Plus,
   RotateCcw,
   Search,
 } from "lucide-react";
@@ -46,9 +45,15 @@ type Obstacle = {
 type ObstacleKind = "palletRacking" | "doorRack" | "millworkBunk";
 type CountdownStep = "2" | "1" | "Go";
 type AsyncStatus = "idle" | "loading" | "error";
+type GameSize = {
+  width: number;
+  height: number;
+};
 
-const GAME_WIDTH = 960;
-const GAME_HEIGHT = 540;
+const DEFAULT_GAME_SIZE: GameSize = {
+  width: 960,
+  height: 540,
+};
 const FLOOR_HEIGHT = 34;
 const FORKLIFT_START_X = 174;
 const GRAVITY = 1700;
@@ -57,6 +62,7 @@ const OBSTACLE_SPEED = 285;
 const OBSTACLE_WIDTH = 72;
 const OBSTACLE_GAP = 168;
 const OBSTACLE_SPACING = 320;
+const FIRST_OBSTACLE_MAX_X = 760;
 const MAX_SPEED_BONUS = 135;
 const COLLISION_INSET = 7;
 const OBSTACLE_KINDS: ObstacleKind[] = [
@@ -71,19 +77,25 @@ const GAME_OVER_MESSAGES = [
   "Your being pelted with addons! You need to slow down.",
 ];
 
-function createForklift(): Forklift {
+function createForklift(size: GameSize = DEFAULT_GAME_SIZE): Forklift {
   return {
-    x: FORKLIFT_START_X,
-    y: GAME_HEIGHT / 2 - 28,
+    x: Math.min(FORKLIFT_START_X, size.width * 0.28),
+    y: size.height / 2 - 28,
     width: 72,
     height: 42,
     velocity: 0,
   };
 }
 
-function createObstacle(x: number): Obstacle {
+function createObstacle(
+  x: number,
+  size: GameSize = DEFAULT_GAME_SIZE,
+): Obstacle {
   const minimumGapY = 82;
-  const maximumGapY = GAME_HEIGHT - FLOOR_HEIGHT - OBSTACLE_GAP - 58;
+  const maximumGapY = Math.max(
+    minimumGapY,
+    size.height - FLOOR_HEIGHT - OBSTACLE_GAP - 58,
+  );
 
   return {
     x,
@@ -126,11 +138,15 @@ function getForkliftHitbox(forklift: Forklift) {
   };
 }
 
-function hasCollision(forklift: Forklift, obstacles: Obstacle[]) {
+function hasCollision(
+  forklift: Forklift,
+  obstacles: Obstacle[],
+  size: GameSize,
+) {
   const forkliftHitbox = getForkliftHitbox(forklift);
   const hitCeiling = forkliftHitbox.y <= 0;
   const hitFloor =
-    forkliftHitbox.y + forkliftHitbox.height >= GAME_HEIGHT - FLOOR_HEIGHT;
+    forkliftHitbox.y + forkliftHitbox.height >= size.height - FLOOR_HEIGHT;
 
   if (hitCeiling || hitFloor) {
     return true;
@@ -147,7 +163,7 @@ function hasCollision(forklift: Forklift, obstacles: Obstacle[]) {
       x: obstacle.x,
       y: obstacle.gapY + obstacle.gapHeight,
       width: obstacle.width,
-      height: GAME_HEIGHT - FLOOR_HEIGHT - (obstacle.gapY + obstacle.gapHeight),
+      height: size.height - FLOOR_HEIGHT - (obstacle.gapY + obstacle.gapHeight),
     };
 
     return (
@@ -157,16 +173,20 @@ function hasCollision(forklift: Forklift, obstacles: Obstacle[]) {
   });
 }
 
-function drawWarehouseBackground(context: CanvasRenderingContext2D) {
-  const wallGradient = context.createLinearGradient(0, 0, 0, GAME_HEIGHT);
+function drawWarehouseBackground(
+  context: CanvasRenderingContext2D,
+  size: GameSize,
+) {
+  const { width, height } = size;
+  const wallGradient = context.createLinearGradient(0, 0, 0, height);
   wallGradient.addColorStop(0, "#f2eadb");
   wallGradient.addColorStop(0.42, "#d8cdbb");
   wallGradient.addColorStop(1, "#a89576");
   context.fillStyle = wallGradient;
-  context.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+  context.fillRect(0, 0, width, height);
 
   context.fillStyle = "rgba(255, 249, 226, 0.48)";
-  for (let x = 120; x < GAME_WIDTH; x += 240) {
+  for (let x = 120; x < width; x += 240) {
     context.beginPath();
     context.ellipse(x, 42, 74, 15, 0, 0, Math.PI * 2);
     context.fill();
@@ -176,16 +196,16 @@ function drawWarehouseBackground(context: CanvasRenderingContext2D) {
   context.beginPath();
   context.moveTo(0, 116);
   context.lineTo(270, 180);
-  context.lineTo(270, GAME_HEIGHT - FLOOR_HEIGHT);
-  context.lineTo(0, GAME_HEIGHT - FLOOR_HEIGHT);
+  context.lineTo(270, height - FLOOR_HEIGHT);
+  context.lineTo(0, height - FLOOR_HEIGHT);
   context.closePath();
   context.fill();
 
   context.beginPath();
-  context.moveTo(GAME_WIDTH, 116);
-  context.lineTo(GAME_WIDTH - 270, 180);
-  context.lineTo(GAME_WIDTH - 270, GAME_HEIGHT - FLOOR_HEIGHT);
-  context.lineTo(GAME_WIDTH, GAME_HEIGHT - FLOOR_HEIGHT);
+  context.moveTo(width, 116);
+  context.lineTo(width - 270, 180);
+  context.lineTo(width - 270, height - FLOOR_HEIGHT);
+  context.lineTo(width, height - FLOOR_HEIGHT);
   context.closePath();
   context.fill();
 
@@ -193,78 +213,78 @@ function drawWarehouseBackground(context: CanvasRenderingContext2D) {
   context.lineWidth = 7;
   for (let x = -30; x < 238; x += 70) {
     context.beginPath();
-    context.moveTo(x, GAME_HEIGHT - FLOOR_HEIGHT);
+    context.moveTo(x, height - FLOOR_HEIGHT);
     context.lineTo(x + 150, 122);
     context.stroke();
   }
-  for (let x = GAME_WIDTH + 30; x > GAME_WIDTH - 238; x -= 70) {
+  for (let x = width + 30; x > width - 238; x -= 70) {
     context.beginPath();
-    context.moveTo(x, GAME_HEIGHT - FLOOR_HEIGHT);
+    context.moveTo(x, height - FLOOR_HEIGHT);
     context.lineTo(x - 150, 122);
     context.stroke();
   }
 
   context.strokeStyle = "rgba(210, 151, 55, 0.72)";
   context.lineWidth = 5;
-  for (let y = 166; y < GAME_HEIGHT - 70; y += 64) {
+  for (let y = 166; y < height - 70; y += 64) {
     context.beginPath();
     context.moveTo(0, y + 30);
     context.lineTo(232, y);
     context.stroke();
     context.beginPath();
-    context.moveTo(GAME_WIDTH, y + 30);
-    context.lineTo(GAME_WIDTH - 232, y);
+    context.moveTo(width, y + 30);
+    context.lineTo(width - 232, y);
     context.stroke();
   }
 
   context.fillStyle = "rgba(46, 41, 34, 0.1)";
-  for (let x = 54; x < GAME_WIDTH; x += 138) {
-    context.fillRect(x, 0, 7, GAME_HEIGHT - FLOOR_HEIGHT);
+  for (let x = 54; x < width; x += 138) {
+    context.fillRect(x, 0, 7, height - FLOOR_HEIGHT);
   }
 
   context.strokeStyle = "rgba(74, 66, 54, 0.16)";
   context.lineWidth = 2;
-  for (let y = 76; y < GAME_HEIGHT - FLOOR_HEIGHT; y += 82) {
+  for (let y = 76; y < height - FLOOR_HEIGHT; y += 82) {
     context.beginPath();
     context.moveTo(0, y);
-    context.lineTo(GAME_WIDTH, y);
+    context.lineTo(width, y);
     context.stroke();
   }
 
   const floorGradient = context.createLinearGradient(
     0,
-    GAME_HEIGHT - 152,
+    height - 152,
     0,
-    GAME_HEIGHT,
+    height,
   );
   floorGradient.addColorStop(0, "#8f8069");
   floorGradient.addColorStop(1, "#443c31");
   context.fillStyle = floorGradient;
-  context.fillRect(0, GAME_HEIGHT - 154, GAME_WIDTH, 154);
+  context.fillRect(0, height - 154, width, 154);
 
   context.fillStyle = "rgba(255, 232, 157, 0.68)";
-  for (let x = -24; x < GAME_WIDTH; x += 92) {
-    context.fillRect(x, GAME_HEIGHT - 21, 42, 4);
+  for (let x = -24; x < width; x += 92) {
+    context.fillRect(x, height - 21, 42, 4);
   }
 
   context.strokeStyle = "rgba(27, 25, 21, 0.2)";
   context.lineWidth = 1;
-  for (let x = -GAME_WIDTH; x < GAME_WIDTH * 2; x += 72) {
+  for (let x = -width; x < width * 2; x += 72) {
     context.beginPath();
-    context.moveTo(x, GAME_HEIGHT - FLOOR_HEIGHT);
-    context.lineTo(x + 180, GAME_HEIGHT);
+    context.moveTo(x, height - FLOOR_HEIGHT);
+    context.lineTo(x + 180, height);
     context.stroke();
   }
 
   context.strokeStyle = "rgba(245, 216, 139, 0.42)";
   context.lineWidth = 3;
   context.beginPath();
-  context.moveTo(388, GAME_HEIGHT - FLOOR_HEIGHT);
-  context.lineTo(292, GAME_HEIGHT);
+  context.moveTo(width / 2 - 92, height - FLOOR_HEIGHT);
+  context.lineTo(width / 2 - 188, height);
   context.stroke();
   context.beginPath();
-  context.moveTo(572, GAME_HEIGHT - FLOOR_HEIGHT);
-  context.lineTo(668, GAME_HEIGHT);
+  context.moveTo(width / 2 + 92, height - FLOOR_HEIGHT);
+  context.lineTo(width / 2 + 188, height);
   context.stroke();
 }
 
@@ -398,9 +418,10 @@ function drawGame(
   context: CanvasRenderingContext2D,
   forklift: Forklift,
   obstacles: Obstacle[],
+  size: GameSize,
 ) {
-  context.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-  drawWarehouseBackground(context);
+  context.clearRect(0, 0, size.width, size.height);
+  drawWarehouseBackground(context, size);
 
   obstacles.forEach((obstacle) => {
     drawObstacleSegment(context, obstacle, 0, obstacle.gapY);
@@ -408,7 +429,7 @@ function drawGame(
       context,
       obstacle,
       obstacle.gapY + obstacle.gapHeight,
-      GAME_HEIGHT - FLOOR_HEIGHT - (obstacle.gapY + obstacle.gapHeight),
+      size.height - FLOOR_HEIGHT - (obstacle.gapY + obstacle.gapHeight),
     );
   });
 
@@ -559,7 +580,7 @@ function ControlsCard() {
           </span>
           <span className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-background px-3 shadow-sm">
             <MousePointerClick className="size-4 text-muted-foreground" />
-            Click
+            Tap / Click
           </span>
         </div>
       </div>
@@ -578,6 +599,7 @@ export function CombiControlGame() {
   const screenRef = useRef<GameScreen>("start");
   const animateRef = useRef<(timestamp: number) => void>(() => {});
   const scoreSavedRef = useRef(false);
+  const gameSizeRef = useRef<GameSize>(DEFAULT_GAME_SIZE);
 
   const [screen, setScreen] = useState<GameScreen>("start");
   const [selectedPlayer, setSelectedPlayer] = useState<GamePlayer | null>(null);
@@ -595,9 +617,6 @@ export function CombiControlGame() {
   const [leaderboardStatus, setLeaderboardStatus] =
     useState<AsyncStatus>("idle");
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
-  const [dailyLeaderboard, setDailyLeaderboard] = useState<LeaderboardEntry[]>(
-    [],
-  );
   const [allTimeLeaderboard, setAllTimeLeaderboard] = useState<
     LeaderboardEntry[]
   >([]);
@@ -639,7 +658,6 @@ export function CombiControlGame() {
     try {
       const leaderboards = await getCombiControlLeaderboards();
 
-      setDailyLeaderboard(leaderboards.daily);
       setAllTimeLeaderboard(leaderboards.allTime);
       setLeaderboardStatus("idle");
     } catch (error) {
@@ -732,6 +750,7 @@ export function CombiControlGame() {
       lastFrameTimeRef.current = timestamp;
 
       const forklift = forkliftRef.current;
+      const gameSize = gameSizeRef.current;
       forklift.velocity += GRAVITY * deltaTime;
       forklift.y += forklift.velocity * deltaTime;
 
@@ -752,13 +771,13 @@ export function CombiControlGame() {
       }
 
       const lastObstacle = obstacles[obstacles.length - 1];
-      if (!lastObstacle || lastObstacle.x < GAME_WIDTH - OBSTACLE_SPACING) {
-        obstacles.push(createObstacle(GAME_WIDTH + 40));
+      if (!lastObstacle || lastObstacle.x < gameSize.width - OBSTACLE_SPACING) {
+        obstacles.push(createObstacle(gameSize.width + 40, gameSize));
       }
 
-      drawGame(context, forklift, obstacles);
+      drawGame(context, forklift, obstacles, gameSize);
 
-      if (hasCollision(forklift, obstacles)) {
+      if (hasCollision(forklift, obstacles, gameSize)) {
         endGame();
         return;
       }
@@ -768,10 +787,13 @@ export function CombiControlGame() {
   }, [endGame]);
 
   const resetGameState = useCallback(() => {
-    forkliftRef.current = createForklift();
+    const gameSize = gameSizeRef.current;
+
+    forkliftRef.current = createForklift(gameSize);
+    const firstObstacleX = Math.min(gameSize.width + 120, FIRST_OBSTACLE_MAX_X);
     obstaclesRef.current = [
-      createObstacle(GAME_WIDTH + 120),
-      createObstacle(GAME_WIDTH + 120 + OBSTACLE_SPACING),
+      createObstacle(firstObstacleX, gameSize),
+      createObstacle(firstObstacleX + OBSTACLE_SPACING, gameSize),
     ];
     scoreRef.current = 0;
     scoreSavedRef.current = false;
@@ -887,23 +909,49 @@ export function CombiControlGame() {
     const resizeCanvas = () => {
       const rect = canvas.getBoundingClientRect();
       const scale = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(rect.width * scale);
-      canvas.height = Math.floor(rect.height * scale);
+      const previousSize = gameSizeRef.current;
+      const nextSize = {
+        width: Math.max(Math.floor(rect.width), 320),
+        height: Math.max(Math.floor(rect.height), 320),
+      };
+
+      canvas.width = Math.floor(nextSize.width * scale);
+      canvas.height = Math.floor(nextSize.height * scale);
+      gameSizeRef.current = nextSize;
 
       const context = canvas.getContext("2d");
       if (!context) {
         return;
       }
 
-      context.setTransform(
-        (rect.width * scale) / GAME_WIDTH,
-        0,
-        0,
-        (rect.height * scale) / GAME_HEIGHT,
-        0,
-        0,
-      );
-      drawGame(context, forkliftRef.current, obstaclesRef.current);
+      const widthRatio = nextSize.width / previousSize.width;
+      const heightRatio = nextSize.height / previousSize.height;
+
+      forkliftRef.current = {
+        ...forkliftRef.current,
+        x: Math.min(
+          forkliftRef.current.x * widthRatio,
+          nextSize.width - forkliftRef.current.width - 8,
+        ),
+        y: Math.min(
+          forkliftRef.current.y * heightRatio,
+          nextSize.height - FLOOR_HEIGHT - forkliftRef.current.height - 8,
+        ),
+      };
+      obstaclesRef.current = obstaclesRef.current.map((obstacle) => ({
+        ...obstacle,
+        x: obstacle.x * widthRatio,
+        gapY: Math.min(
+          obstacle.gapY * heightRatio,
+          Math.max(
+            82,
+            nextSize.height - FLOOR_HEIGHT - obstacle.gapHeight - 58,
+          ),
+        ),
+      }));
+
+      context.setTransform(scale, 0, 0, scale, 0, 0);
+      drawGame(context, forkliftRef.current, obstaclesRef.current, nextSize);
     };
 
     const resizeObserver = new ResizeObserver(resizeCanvas);
@@ -915,26 +963,50 @@ export function CombiControlGame() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.code !== "Space") {
+      if (event.code === "Space") {
+        if (
+          screenRef.current === "playing" ||
+          screenRef.current === "countdown"
+        ) {
+          event.preventDefault();
+        }
+
+        if (screenRef.current === "playing") {
+          flap();
+        }
+
         return;
       }
 
-      if (
-        screenRef.current === "playing" ||
-        screenRef.current === "countdown"
-      ) {
+      if (event.code === "KeyF" && screenRef.current === "gameOver") {
         event.preventDefault();
-      }
 
-      if (screenRef.current === "playing") {
-        flap();
+        if (!event.repeat) {
+          void startGame();
+        }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
 
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [flap]);
+  }, [flap, startGame]);
+
+  const handleCanvasPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLElement>) => {
+      if (
+        screenRef.current !== "playing" ||
+        !event.isPrimary ||
+        event.button > 0
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      flap();
+    },
+    [flap],
+  );
 
   useEffect(() => {
     return () => {
@@ -944,49 +1016,61 @@ export function CombiControlGame() {
   }, [clearCountdownTimer, stopLoop]);
 
   return (
-    <main className="h-screen w-screen overflow-hidden bg-background text-foreground">
-      <section className="relative h-full w-full overflow-hidden bg-card">
+    <main className="h-dvh w-screen overflow-hidden bg-background text-foreground">
+      <section
+        className="relative h-full w-full overflow-hidden bg-card"
+        style={{ touchAction: screen === "playing" ? "none" : "auto" }}
+        onPointerDown={handleCanvasPointerDown}
+      >
         <canvas
           ref={canvasRef}
           aria-label="Combi Control game canvas"
           className="block h-full w-full touch-none select-none bg-muted"
-          onMouseDown={flap}
-          onTouchStart={(event) => {
-            event.preventDefault();
-            flap();
-          }}
         />
 
         {screen === "countdown" || screen === "playing" ? (
-          <header className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex items-center justify-between px-4 py-3 sm:px-5">
+          <header className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex items-center justify-between px-2.5 py-2 sm:px-5 sm:py-3">
             <div className="flex min-w-0 items-center gap-2">
               {selectedPlayer ? (
-                <div className="min-w-32 max-w-[42vw] rounded-md bg-background/78 px-3 py-2 text-center shadow-sm backdrop-blur-sm sm:max-w-xs">
-                  <div className="text-[0.68rem] font-black uppercase leading-none tracking-wide text-muted-foreground">
+                <div className="min-w-0 max-w-[44vw] rounded-md bg-background/78 px-2.5 py-1.5 text-center shadow-sm backdrop-blur-sm sm:min-w-32 sm:max-w-xs sm:px-3 sm:py-2">
+                  <div className="text-[0.56rem] font-black uppercase leading-none tracking-wide text-muted-foreground sm:text-[0.68rem]">
                     Player
                   </div>
-                  <div className="mx-auto my-1.5 h-px w-full bg-border/80" />
-                  <div className="truncate text-base font-black leading-none text-foreground sm:text-lg">
+                  <div className="mx-auto my-1 h-px w-full bg-border/80 sm:my-1.5" />
+                  <div className="truncate text-sm font-black leading-none text-foreground sm:text-lg">
                     {selectedPlayer.name}
                   </div>
                 </div>
               ) : null}
             </div>
-            <div className="min-w-28 rounded-md bg-background/78 px-3 py-2 text-center shadow-sm backdrop-blur-sm">
-              <div className="text-[0.68rem] font-black uppercase leading-none tracking-wide text-amber-900">
+            <div className="min-w-20 rounded-md bg-background/78 px-2.5 py-1.5 text-center shadow-sm backdrop-blur-sm sm:min-w-28 sm:px-3 sm:py-2">
+              <div className="text-[0.56rem] font-black uppercase leading-none tracking-wide text-amber-900 sm:text-[0.68rem]">
                 Aisles Cleared
               </div>
-              <div className="mx-auto my-1.5 h-px w-full bg-amber-300/80" />
-              <div className="text-4xl font-black leading-none tabular-nums text-amber-950 sm:text-5xl">
+              <div className="mx-auto my-1 h-px w-full bg-amber-300/80 sm:my-1.5" />
+              <div className="text-2xl font-black leading-none tabular-nums text-amber-950 sm:text-5xl">
                 {score}
               </div>
             </div>
           </header>
         ) : null}
 
+        {screen === "countdown" ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/50 px-4 backdrop-blur-[2px]">
+            <div className="rounded-md bg-background/82 px-8 py-6 text-center shadow-lg backdrop-blur-sm">
+              <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Get Ready
+              </p>
+              <div className="mt-2 text-7xl font-semibold leading-none tracking-normal text-foreground">
+                {countdown}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {screen === "start" ? (
           <div className="absolute inset-0 flex items-center justify-center bg-black/62 px-4 py-4 backdrop-blur-[3px]">
-            <div className="grid max-h-[calc(100vh-2rem)] w-full max-w-5xl gap-4 overflow-auto md:grid-cols-[minmax(0,25rem)_minmax(18rem,1fr)] md:items-start">
+            <div className="grid max-h-[calc(100dvh-2rem)] w-full max-w-5xl gap-4 overflow-auto md:grid-cols-[minmax(0,25rem)_minmax(18rem,1fr)] md:items-start">
               <div className="relative rounded-md border border-border bg-card/95 p-6 shadow-2xl">
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-primary/70" />
                 <div className="mb-7">
@@ -1055,24 +1139,14 @@ export function CombiControlGame() {
 
                       {playerSearchStatus === "idle" &&
                       playerMatches.length === 0 ? (
-                        <div className="space-y-3 rounded-md border border-dashed border-border bg-background px-4 py-4">
-                          <p className="text-sm text-muted-foreground">
+                        <div className="rounded-md border border-dashed border-border bg-background px-4 py-4">
+                          <p className="text-sm font-semibold text-foreground">
                             No matching player.
                           </p>
-                          <Button
-                            type="button"
-                            className="w-full"
-                            onClick={startGame}
-                            disabled={playerActionStatus === "loading"}
-                          >
-                            {playerActionStatus === "loading" ? (
-                              <Loader2 className="size-4 animate-spin" />
-                            ) : (
-                              <Plus className="size-4" />
-                            )}
-                            Create &quot;{playerSearchTerm.trim()}&quot; and
-                            Start
-                          </Button>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            Start Shift will create &quot;
+                            {playerSearchTerm.trim()}&quot; as a new player.
+                          </p>
                         </div>
                       ) : null}
 
@@ -1144,25 +1218,12 @@ export function CombiControlGame() {
           </div>
         ) : null}
 
-        {screen === "countdown" ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/50 px-4 backdrop-blur-[2px]">
-            <div className="rounded-md bg-background/82 px-8 py-6 text-center shadow-lg backdrop-blur-sm">
-              <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Get Ready
-              </p>
-              <div className="mt-2 text-7xl font-semibold leading-none tracking-normal text-foreground">
-                {countdown}
-              </div>
-            </div>
-          </div>
-        ) : null}
-
         {screen === "gameOver" ? (
           <div className="absolute inset-0 flex items-center justify-center bg-black/62 px-4 py-4 backdrop-blur-[3px]">
-            <div className="grid max-h-[calc(100vh-2rem)] w-full max-w-6xl gap-4 overflow-auto lg:grid-cols-[minmax(0,1fr)_23rem]">
-              <div className="relative flex min-h-128 flex-col overflow-hidden rounded-md border border-destructive/25 bg-card/95 p-5 text-center shadow-2xl sm:p-6">
+            <div className="grid max-h-[calc(100dvh-2rem)] w-full max-w-5xl gap-4 overflow-auto lg:grid-cols-2 lg:items-stretch">
+              <div className="relative flex min-h-136 flex-col overflow-hidden rounded-md border border-destructive/25 bg-card/95 p-5 text-center shadow-2xl sm:p-6">
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-destructive/75" />
-                <div className="grid gap-5">
+                <div className="grid gap-4">
                   <div className="px-1 text-center">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Player
@@ -1171,7 +1232,7 @@ export function CombiControlGame() {
                       {selectedPlayer?.name ?? "No player selected"}
                     </p>
                   </div>
-                  <div className="mx-auto w-full max-w-sm border-y border-border px-5 py-4 text-center">
+                  <div className="mx-auto w-full max-w-sm border-y border-border px-5 py-3 text-center">
                     <p className="text-sm font-black uppercase tracking-[0.18em] text-muted-foreground">
                       Final Score
                     </p>
@@ -1183,11 +1244,11 @@ export function CombiControlGame() {
 
                 <div className="flex flex-1 items-center justify-center py-5">
                   <div>
-                    <p className="text-[0.68rem] font-bold uppercase tracking-[0.22em] text-destructive">
+                    <p className="text-sm font-black uppercase tracking-[0.2em] text-destructive sm:text-base">
                       Game Over
                     </p>
                     <h2
-                      className="mx-auto mt-3 max-w-2xl text-balance text-2xl font-bold leading-snug tracking-normal text-foreground sm:text-3xl lg:text-4xl"
+                      className="mx-auto mt-2 max-w-xl text-balance text-xl font-bold leading-snug tracking-normal text-foreground sm:text-2xl lg:text-3xl"
                       style={{
                         fontFamily: '"Comic Sans MS", "Comic Sans", cursive',
                       }}
@@ -1209,54 +1270,49 @@ export function CombiControlGame() {
                 </div>
 
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <Button onClick={startGame}>
-                    <RotateCcw className="size-4" />
-                    Play Again
+                  <Button
+                    className="min-h-12 justify-between"
+                    onClick={startGame}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <RotateCcw className="size-4" />
+                      Play Again
+                    </span>
+                    <span className="rounded border border-primary-foreground/40 bg-primary-foreground/15 px-2 py-0.5 text-xs font-black uppercase tracking-wide">
+                      F
+                    </span>
                   </Button>
-                  <Button variant="outline" onClick={backToStart}>
+                  <Button
+                    className="min-h-12"
+                    variant="outline"
+                    onClick={backToStart}
+                  >
                     <ArrowLeft className="size-4" />
                     Back to Main Menu
                   </Button>
                 </div>
               </div>
 
-              <section className="relative rounded-md border border-border bg-card/95 p-4 shadow-2xl">
+              <section className="relative min-h-136 overflow-hidden rounded-md border border-border bg-card/95 p-4 shadow-2xl">
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-amber-300" />
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-700">
-                      Rankings
+                      High Scores
                     </p>
                     <h3 className="text-xl font-black tracking-normal text-foreground">
-                      Leaderboard
+                      All Time
                     </h3>
                   </div>
                   <span className="rounded-full border border-border bg-muted px-2.5 py-1 text-xs font-bold text-muted-foreground">
                     Top 20
                   </span>
                 </div>
-                <div className="space-y-5">
-                  <section className="space-y-2">
-                    <h4 className="text-sm font-semibold text-foreground">
-                      Today
-                    </h4>
-                    <LeaderboardList
-                      entries={dailyLeaderboard}
-                      status={leaderboardStatus}
-                      error={leaderboardError}
-                    />
-                  </section>
-                  <section className="space-y-2">
-                    <h4 className="text-sm font-semibold text-foreground">
-                      All Time
-                    </h4>
-                    <LeaderboardList
-                      entries={allTimeLeaderboard}
-                      status={leaderboardStatus}
-                      error={leaderboardError}
-                    />
-                  </section>
-                </div>
+                <LeaderboardList
+                  entries={allTimeLeaderboard}
+                  status={leaderboardStatus}
+                  error={leaderboardError}
+                />
               </section>
             </div>
           </div>
