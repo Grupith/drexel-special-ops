@@ -61,13 +61,13 @@ const FLOOR_HEIGHT = 34;
 const FORKLIFT_START_X = 174;
 const GRAVITY = 1700;
 const LIFT_FORCE = -560;
-const OBSTACLE_SPEED = 285;
+const OBSTACLE_SPEED = 245;
 const OBSTACLE_WIDTH = 72;
-const OBSTACLE_GAP = 168;
+const OBSTACLE_GAP = 188;
 const OBSTACLE_SPACING = 320;
 const FIRST_OBSTACLE_MAX_X = 760;
-const MAX_SPEED_BONUS = 135;
-const COLLISION_INSET = 7;
+const MAX_SPEED_BONUS = 170;
+const COLLISION_INSET = 10;
 const OBSTACLE_KINDS: ObstacleKind[] = [
   "palletRacking",
   "doorRack",
@@ -114,7 +114,7 @@ function createObstacle(
 }
 
 function getScaledObstacleSpeed(score: number) {
-  return OBSTACLE_SPEED + Math.min(score * 9, MAX_SPEED_BONUS);
+  return OBSTACLE_SPEED + Math.min(score * 7, MAX_SPEED_BONUS);
 }
 
 function getRandomGameOverMessage() {
@@ -1358,7 +1358,7 @@ export function CombiControlGame() {
                       Game Over
                     </p>
                     <h2
-                      className="mx-auto mt-2 max-w-xl text-balance text-xl font-medium leading-snug tracking-normal text-foreground sm:text-2xl lg:text-3xl"
+                      className="mx-auto mt-2 max-w-xl text-balance text-2xl font-medium leading-snug tracking-normal text-foreground sm:text-2xl lg:text-3xl"
                       style={{
                         fontFamily: '"Comic Sans MS", "Comic Sans", cursive',
                       }}
