@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
+  BadgeCheck,
   Crown,
   Keyboard,
   Loader2,
@@ -10,6 +11,7 @@ import {
   Play,
   RotateCcw,
   Search,
+  UserPlus,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -75,6 +77,9 @@ const GAME_OVER_MESSAGES = [
   "You bent the pallet racking. Opies Mad! ",
   'You probably "forgot" to do a forklift inspection again.',
   "Your being pelted with addons! You need to slow down.",
+  "Joel saw you chillen on your phone when he was walking by. He is not happy.",
+  "You hit a pole, JLO would be proud of you.",
+  "Tanner already knew about it.",
 ];
 
 function createForklift(size: GameSize = DEFAULT_GAME_SIZE): Forklift {
@@ -442,11 +447,11 @@ function getLeaderboardRowClass(index: number) {
   }
 
   if (index === 1) {
-    return "border-slate-300 bg-slate-50";
+    return "border-slate-300 bg-gradient-to-br from-slate-50 via-zinc-50 to-background shadow-[0_10px_24px_rgba(71,85,105,0.14)]";
   }
 
   if (index === 2) {
-    return "border-orange-300 bg-orange-50";
+    return "border-orange-300 bg-gradient-to-br from-orange-50 via-amber-50/70 to-background shadow-[0_10px_24px_rgba(194,65,12,0.13)]";
   }
 
   return "border-border/70 bg-background";
@@ -458,28 +463,82 @@ function getLeaderboardRankClass(index: number) {
   }
 
   if (index === 1) {
-    return "border-slate-300 bg-slate-100 text-slate-800";
+    return "border-slate-300 bg-slate-100 text-slate-800 shadow-sm";
   }
 
   if (index === 2) {
-    return "border-orange-300 bg-orange-100 text-orange-950";
+    return "border-orange-300 bg-orange-100 text-orange-950 shadow-sm";
   }
 
   return "border-border bg-muted/60 text-muted-foreground";
+}
+
+function getLeaderboardLabel(index: number) {
+  if (index === 0) {
+    return "Current top spot";
+  }
+
+  if (index === 1) {
+    return "Second place";
+  }
+
+  if (index === 2) {
+    return "Third place";
+  }
+
+  return null;
+}
+
+function getLeaderboardLabelClass(index: number) {
+  if (index === 0) {
+    return "text-amber-700";
+  }
+
+  if (index === 1) {
+    return "text-slate-600";
+  }
+
+  if (index === 2) {
+    return "text-orange-700";
+  }
+
+  return "";
+}
+
+function getLeaderboardScoreClass(index: number) {
+  if (index === 0) {
+    return "border border-amber-300 bg-amber-100 px-2.5 py-1 text-base shadow-sm";
+  }
+
+  if (index === 1) {
+    return "border border-slate-300 bg-slate-100 px-2.5 py-1 text-sm shadow-sm";
+  }
+
+  if (index === 2) {
+    return "border border-orange-300 bg-orange-100 px-2.5 py-1 text-sm shadow-sm";
+  }
+
+  return "bg-muted/70 px-2 py-0.5";
 }
 
 function LeaderboardList({
   entries,
   status,
   error,
+  fillHeight = false,
 }: {
   entries: LeaderboardEntry[];
   status: AsyncStatus;
   error: string | null;
+  fillHeight?: boolean;
 }) {
   if (status === "loading") {
     return (
-      <div className="flex h-24 items-center justify-center rounded-md border border-border bg-background/70 text-sm text-muted-foreground">
+      <div
+        className={`flex items-center justify-center rounded-md border border-border bg-background/70 text-sm text-muted-foreground ${
+          fillHeight ? "min-h-0 flex-1" : "h-24"
+        }`}
+      >
         <Loader2 className="mr-2 size-4 animate-spin" />
         Loading
       </div>
@@ -488,7 +547,11 @@ function LeaderboardList({
 
   if (status === "error") {
     return (
-      <div className="rounded-md border border-destructive/25 bg-destructive/10 px-3 py-3 text-sm text-destructive">
+      <div
+        className={`rounded-md border border-destructive/25 bg-destructive/10 px-3 py-3 text-sm text-destructive ${
+          fillHeight ? "min-h-0 flex-1" : ""
+        }`}
+      >
         {error ?? "Unable to load leaderboard."}
       </div>
     );
@@ -496,16 +559,26 @@ function LeaderboardList({
 
   if (entries.length === 0) {
     return (
-      <div className="rounded-md border border-border bg-background/70 px-3 py-3 text-sm text-muted-foreground">
+      <div
+        className={`rounded-md border border-border bg-background/70 px-3 py-3 text-sm text-muted-foreground ${
+          fillHeight ? "min-h-0 flex-1" : ""
+        }`}
+      >
         No scores yet.
       </div>
     );
   }
 
   return (
-    <ol className="max-h-80 space-y-1 overflow-auto pr-1">
+    <ol
+      className={`space-y-1 overflow-auto pr-1 ${
+        fillHeight ? "min-h-0 flex-1" : "max-h-80"
+      }`}
+    >
       {entries.map((entry, index) => {
         const isChampion = index === 0;
+        const isPodium = index < 3;
+        const leaderboardLabel = getLeaderboardLabel(index);
 
         return (
           <li
@@ -515,36 +588,44 @@ function LeaderboardList({
             )} ${
               isChampion
                 ? "grid-cols-[2.75rem_minmax(0,1fr)_auto] px-3 py-3"
-                : "grid-cols-[2rem_minmax(0,1fr)_auto] px-2.5 py-1.5"
+                : isPodium
+                  ? "grid-cols-[2.5rem_minmax(0,1fr)_auto] px-3 py-2.5"
+                  : "grid-cols-[2rem_minmax(0,1fr)_auto] px-2.5 py-1.5"
             }`}
           >
             <span
               className={`flex items-center justify-center rounded-full border font-bold ${getLeaderboardRankClass(
                 index,
-              )} ${isChampion ? "size-9 text-base" : "size-6 text-xs"}`}
+              )} ${isChampion ? "size-9 text-base" : isPodium ? "size-8 text-sm" : "size-6 text-xs"}`}
             >
               {isChampion ? <Crown className="size-4" /> : index + 1}
             </span>
             <span className="min-w-0">
-              {isChampion ? (
-                <span className="mb-0.5 block text-[0.65rem] font-black uppercase tracking-[0.16em] text-amber-700">
-                  Current top spot
+              {leaderboardLabel ? (
+                <span
+                  className={`mb-0.5 block text-[0.65rem] font-black uppercase tracking-[0.16em] ${getLeaderboardLabelClass(
+                    index,
+                  )}`}
+                >
+                  {leaderboardLabel}
                 </span>
               ) : null}
               <span
                 className={`block truncate text-foreground ${
-                  isChampion ? "text-base font-black" : "font-medium"
+                  isChampion
+                    ? "text-base font-black"
+                    : isPodium
+                      ? "font-bold"
+                      : "font-medium"
                 }`}
               >
                 {entry.playerName}
               </span>
             </span>
             <span
-              className={`rounded-md font-bold tabular-nums text-foreground ${
-                isChampion
-                  ? "border border-amber-300 bg-amber-100 px-2.5 py-1 text-base shadow-sm"
-                  : "bg-muted/70 px-2 py-0.5"
-              }`}
+              className={`rounded-md font-bold tabular-nums text-foreground ${getLeaderboardScoreClass(
+                index,
+              )}`}
             >
               {entry.score}
             </span>
@@ -699,7 +780,7 @@ export function CombiControlGame() {
     async (scoreToSave: number) => {
       const player = selectedPlayer;
 
-      if (!player || scoreToSave <= 0 || scoreSavedRef.current) {
+      if (!player || scoreToSave < 0 || scoreSavedRef.current) {
         await loadLeaderboards();
         return;
       }
@@ -1139,13 +1220,20 @@ export function CombiControlGame() {
 
                       {playerSearchStatus === "idle" &&
                       playerMatches.length === 0 ? (
-                        <div className="rounded-md border border-dashed border-border bg-background px-4 py-4">
-                          <p className="text-sm font-semibold text-foreground">
+                        <div className="rounded-md border border-dashed border-emerald-400/45 bg-emerald-50/80 px-4 py-3.5 text-emerald-950 shadow-sm shadow-emerald-950/5 dark:border-emerald-400/35 dark:bg-emerald-950/25 dark:text-emerald-50">
+                          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/70 bg-emerald-100 px-2.5 py-1 text-xs font-black uppercase tracking-normal text-emerald-900 dark:border-emerald-500/35 dark:bg-emerald-400/15 dark:text-emerald-100">
+                            <UserPlus className="size-3.5" />
+                            New player queued
+                          </div>
+                          <p className="mt-2 text-sm font-semibold text-emerald-950 dark:text-emerald-50">
                             No matching player.
                           </p>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            Start Shift will create &quot;
-                            {playerSearchTerm.trim()}&quot; as a new player.
+                          <p className="mt-1.5 text-sm text-emerald-900/80 dark:text-emerald-100/75">
+                            Start Shift will create{" "}
+                            <strong className="font-black text-emerald-950 dark:text-emerald-50">
+                              &quot;{playerSearchTerm.trim()}&quot;
+                            </strong>{" "}
+                            as a new player.
                           </p>
                         </div>
                       ) : null}
@@ -1166,6 +1254,26 @@ export function CombiControlGame() {
                           Use This Player
                         </Button>
                       ) : null}
+                    </div>
+                  ) : null}
+
+                  {selectedPlayer ? (
+                    <div className="rounded-md border border-dashed border-sky-400/45 bg-sky-50/80 px-4 py-3.5 text-sky-950 shadow-sm shadow-sky-950/5 dark:border-sky-400/35 dark:bg-sky-950/25 dark:text-sky-50">
+                      <div className="inline-flex items-center gap-2 rounded-full border border-sky-300/70 bg-sky-100 px-2.5 py-1 text-xs font-black uppercase tracking-normal text-sky-900 dark:border-sky-500/35 dark:bg-sky-400/15 dark:text-sky-100">
+                        <BadgeCheck className="size-3.5" />
+                        Player found
+                      </div>
+                      <p className="mt-2 text-sm font-semibold text-sky-950 dark:text-sky-50">
+                        Ready for{" "}
+                        <strong className="font-black">
+                          {selectedPlayer.name}
+                        </strong>
+                        .
+                      </p>
+                      <p className="mt-1.5 text-sm text-sky-900/80 dark:text-sky-100/75">
+                        Start Shift will load this player and save the run to
+                        their profile.
+                      </p>
                     </div>
                   ) : null}
 
@@ -1220,7 +1328,7 @@ export function CombiControlGame() {
 
         {screen === "gameOver" ? (
           <div className="absolute inset-0 flex items-center justify-center bg-black/62 px-4 py-4 backdrop-blur-[3px]">
-            <div className="grid max-h-[calc(100dvh-2rem)] w-full max-w-5xl gap-4 overflow-auto lg:grid-cols-2 lg:items-stretch">
+            <div className="grid max-h-[calc(100dvh-2rem)] w-full max-w-5xl gap-4 overflow-auto lg:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)] lg:items-stretch">
               <div className="relative flex min-h-136 flex-col overflow-hidden rounded-md border border-destructive/25 bg-card/95 p-5 text-center shadow-2xl sm:p-6">
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-destructive/75" />
                 <div className="grid gap-4">
@@ -1228,7 +1336,7 @@ export function CombiControlGame() {
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Player
                     </p>
-                    <p className="mt-1 truncate text-xl font-bold text-sky-700 sm:text-2xl">
+                    <p className="mt-1 truncate text-xl font-bold text-black sm:text-2xl">
                       {selectedPlayer?.name ?? "No player selected"}
                     </p>
                   </div>
@@ -1236,7 +1344,7 @@ export function CombiControlGame() {
                     <p className="text-sm font-black uppercase tracking-[0.18em] text-muted-foreground">
                       Final Score
                     </p>
-                    <p className="mt-2 text-6xl font-black leading-none tabular-nums text-foreground sm:text-7xl">
+                    <p className="mt-2 text-6xl font-black leading-none tabular-nums text-sky-700 sm:text-7xl">
                       {finalScore}
                     </p>
                   </div>
@@ -1244,11 +1352,11 @@ export function CombiControlGame() {
 
                 <div className="flex flex-1 items-center justify-center py-5">
                   <div>
-                    <p className="text-sm font-black uppercase tracking-[0.2em] text-destructive sm:text-base">
+                    <p className="text-lg font-black uppercase tracking-[0.2em] text-destructive sm:text-lg">
                       Game Over
                     </p>
                     <h2
-                      className="mx-auto mt-2 max-w-xl text-balance text-xl font-bold leading-snug tracking-normal text-foreground sm:text-2xl lg:text-3xl"
+                      className="mx-auto mt-2 max-w-xl text-balance text-xl font-medium leading-snug tracking-normal text-foreground sm:text-2xl lg:text-3xl"
                       style={{
                         fontFamily: '"Comic Sans MS", "Comic Sans", cursive',
                       }}
@@ -1293,7 +1401,7 @@ export function CombiControlGame() {
                 </div>
               </div>
 
-              <section className="relative min-h-136 overflow-hidden rounded-md border border-border bg-card/95 p-4 shadow-2xl">
+              <section className="relative flex min-h-136 flex-col overflow-hidden rounded-md border border-border bg-card/95 p-4 shadow-2xl">
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-amber-300" />
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
@@ -1312,6 +1420,7 @@ export function CombiControlGame() {
                   entries={allTimeLeaderboard}
                   status={leaderboardStatus}
                   error={leaderboardError}
+                  fillHeight
                 />
               </section>
             </div>

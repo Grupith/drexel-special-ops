@@ -51,16 +51,51 @@ service cloud.firestore {
           "name",
           "normalizedName",
           "createdAt",
-          "lastPlayedAt"
+          "lastPlayedAt",
+          "gamesPlayed",
+          "totalAisles"
         ])
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.normalizedName is string
         && request.resource.data.normalizedName.size() > 0
+        && request.resource.data.gamesPlayed is int
+        && request.resource.data.gamesPlayed == 0
+        && request.resource.data.totalAisles is int
+        && request.resource.data.totalAisles == 0
         && request.resource.data.createdAt == request.time
         && request.resource.data.lastPlayedAt == request.time;
-      allow update: if request.resource.data.diff(resource.data).changedKeys().hasOnly(["lastPlayedAt"])
-        && request.resource.data.lastPlayedAt == request.time;
+      allow update: if (
+          request.resource.data.diff(resource.data).changedKeys().hasOnly(["lastPlayedAt"])
+          && request.resource.data.lastPlayedAt == request.time
+        ) || (
+          request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            "lastPlayedAt",
+            "gamesPlayed",
+            "totalAisles"
+          ])
+          && request.resource.data.diff(resource.data).changedKeys().hasAll([
+            "lastPlayedAt",
+            "gamesPlayed"
+          ])
+          && request.resource.data.lastPlayedAt == request.time
+          && request.resource.data.gamesPlayed is int
+          && request.resource.data.totalAisles is int
+          && (
+            resource.data.keys().hasAll(["gamesPlayed"])
+              ? request.resource.data.gamesPlayed == resource.data.gamesPlayed + 1
+              : request.resource.data.gamesPlayed == 1
+          )
+          && (
+            request.resource.data.diff(resource.data).changedKeys().hasAny(["totalAisles"])
+              ? (
+                resource.data.keys().hasAll(["totalAisles"])
+                  ? request.resource.data.totalAisles >= resource.data.totalAisles
+                  : request.resource.data.totalAisles >= 0
+              )
+              : request.resource.data.totalAisles == resource.data.totalAisles
+          )
+        );
       allow delete: if false;
     }
 

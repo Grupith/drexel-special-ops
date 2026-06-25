@@ -1,11 +1,11 @@
 "use client";
 
 import {
-  addDoc,
   collection,
   doc,
   getDoc,
   getDocs,
+  increment,
   limit,
   orderBy,
   query,
@@ -13,6 +13,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
   type DocumentData,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
@@ -61,7 +62,7 @@ export async function searchGamePlayers(searchTerm: string) {
     orderBy("normalizedName"),
     where("normalizedName", ">=", normalizedSearch),
     where("normalizedName", "<=", `${normalizedSearch}\uf8ff`),
-    limit(8)
+    limit(8),
   );
 
   const snapshot = await getDocs(playersQuery);
@@ -107,6 +108,8 @@ export async function getOrCreateGamePlayer(name: string) {
     normalizedName,
     createdAt: serverTimestamp(),
     lastPlayedAt: serverTimestamp(),
+    gamesPlayed: 0,
+    totalAisles: 0,
   };
 
   await setDoc(playerRef, player);
@@ -119,18 +122,32 @@ export async function getOrCreateGamePlayer(name: string) {
 }
 
 export async function saveCombiControlScore(player: GamePlayer, score: number) {
-  if (score <= 0) {
+  if (score < 0) {
     return;
   }
 
-  await addDoc(collection(db, "gameScores"), {
-    game: COMBI_CONTROL_GAME_ID,
-    playerId: player.id,
-    playerName: player.name,
-    score,
-    dateKey: getTodayDateKey(),
-    createdAt: serverTimestamp(),
+  const batch = writeBatch(db);
+  const scoreRef = doc(collection(db, "gameScores"));
+  const playerRef = doc(db, "gamePlayers", player.id);
+
+  if (score > 0) {
+    batch.set(scoreRef, {
+      game: COMBI_CONTROL_GAME_ID,
+      playerId: player.id,
+      playerName: player.name,
+      score,
+      dateKey: getTodayDateKey(),
+      createdAt: serverTimestamp(),
+    });
+  }
+
+  batch.update(playerRef, {
+    gamesPlayed: increment(1),
+    totalAisles: increment(score),
+    lastPlayedAt: serverTimestamp(),
   });
+
+  await batch.commit();
 }
 
 function mapScoreDoc(scoreDoc: ScoreDoc): LeaderboardEntry {
@@ -167,7 +184,7 @@ function topUniquePlayerScores(entries: LeaderboardEntry[]) {
 
 async function filterScoresForExistingPlayers(entries: LeaderboardEntry[]) {
   const playerIds = Array.from(
-    new Set(entries.map((entry) => entry.playerId).filter(Boolean))
+    new Set(entries.map((entry) => entry.playerId).filter(Boolean)),
   );
 
   if (playerIds.length === 0) {
@@ -179,12 +196,12 @@ async function filterScoresForExistingPlayers(entries: LeaderboardEntry[]) {
       const playerSnapshot = await getDoc(doc(db, "gamePlayers", playerId));
 
       return [playerId, playerSnapshot.exists()] as const;
-    })
+    }),
   );
   const existingPlayerIds = new Set(
     playerChecks
       .filter(([, playerExists]) => playerExists)
-      .map(([playerId]) => playerId)
+      .map(([playerId]) => playerId),
   );
 
   return entries.filter((entry) => existingPlayerIds.has(entry.playerId));
@@ -204,12 +221,12 @@ async function getFallbackLeaderboards(dateKey: string) {
   const dailyFallbackQuery = query(
     scoresRef,
     where("dateKey", "==", dateKey),
-    limit(100)
+    limit(100),
   );
   const allTimeFallbackQuery = query(
     scoresRef,
     where("game", "==", COMBI_CONTROL_GAME_ID),
-    limit(100)
+    limit(100),
   );
 
   const [dailySnapshot, allTimeSnapshot] = await Promise.all([
@@ -221,7 +238,7 @@ async function getFallbackLeaderboards(dateKey: string) {
     filterScoresForExistingPlayers(
       dailySnapshot.docs
         .filter((scoreDoc) => scoreDoc.data().game === COMBI_CONTROL_GAME_ID)
-        .map(mapScoreDoc)
+        .map(mapScoreDoc),
     ),
     filterScoresForExistingPlayers(allTimeSnapshot.docs.map(mapScoreDoc)),
   ]);
@@ -240,13 +257,13 @@ export async function getCombiControlLeaderboards() {
     where("game", "==", COMBI_CONTROL_GAME_ID),
     where("dateKey", "==", dateKey),
     orderBy("score", "desc"),
-    limit(100)
+    limit(100),
   );
   const allTimeQuery = query(
     scoresRef,
     where("game", "==", COMBI_CONTROL_GAME_ID),
     orderBy("score", "desc"),
-    limit(100)
+    limit(100),
   );
 
   try {
