@@ -59,7 +59,7 @@ type LatestSplit = {
 const RECEIVING_TEAM_NAMES = [
   "Ashley Helgerson",
   "Dylan Koss",
-  "Mike Santacroche",
+  "Michael Santacroce",
   "AJ Klotz",
   "Chris Roeske",
   "Bryce Vogt",
