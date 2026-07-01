@@ -24,7 +24,6 @@ import {
   FileText,
   FilePlus,
   House,
-  Package,
   Search,
   Smile,
   Zap,
@@ -433,17 +432,14 @@ export default function DashboardPage() {
                   ) : null}
                 </div>
 
-                <div className="flex w-full items-center justify-between gap-4 rounded-lg border border-border/80 bg-card/80 px-4 py-3 shadow-sm sm:w-auto sm:min-w-64">
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <div className="w-full sm:w-auto sm:min-w-32">
+                  <div className="text-center">
+                    <p className="inline-block border-b border-foreground/60 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Total Splits
                     </p>
-                    <p className="text-2xl font-semibold leading-none text-foreground">
+                    <p className="mt-2 text-2xl font-semibold leading-none text-foreground">
                       {totalSplits}
                     </p>
-                  </div>
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border/80 bg-accent text-accent-foreground">
-                    <Package className="h-5 w-5" />
                   </div>
                 </div>
               </div>
@@ -590,6 +586,61 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        <section className="space-y-3">
+          <div className="flex items-end justify-between gap-4">
+            <div className="space-y-1">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Latest 3 Splits
+              </h2>
+            </div>
+          </div>
+
+          {latestSplits.length > 0 ? (
+            <div className="grid gap-3 md:grid-cols-3">
+              {latestSplits.map((split) => (
+                <button
+                  key={split.id}
+                  type="button"
+                  onClick={() => router.push(`/splitter/${split.id}`)}
+                  className="group cursor-pointer min-h-44 rounded-lg border border-border/80 bg-card/80 p-5 text-left shadow-sm transition-colors hover:border-ring/40 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+                >
+                  <div className="flex h-full flex-col justify-between gap-6">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border/70 bg-accent text-accent-foreground">
+                        <FileText className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0 space-y-2">
+                        <p className="line-clamp-3 text-lg font-semibold leading-snug text-foreground group-hover:text-primary">
+                          {split.fileName}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-border/70 pt-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Received by
+                      </p>
+                      <div className="mt-2 flex items-end justify-between gap-3">
+                        <p className="min-w-0 truncate text-base font-bold leading-tight text-sky-600">
+                          {split.receivedByName}
+                        </p>
+                        <div className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                          <CalendarDays className="h-4 w-4" />
+                          <span>{split.createdAtLabel}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-border/80 bg-card/60 px-4 py-6 text-sm text-muted-foreground">
+              No split files yet.
+            </div>
+          )}
+        </section>
+
         {/* Daily Leaderboard */}
 
         <section className="relative z-0 space-y-3">
@@ -673,61 +724,6 @@ export default function DashboardPage() {
               </p>
             </div>
           </div>
-        </section>
-
-        <section className="space-y-3">
-          <div className="flex items-end justify-between gap-4">
-            <div className="space-y-1">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Latest 3 Splits
-              </h2>
-            </div>
-          </div>
-
-          {latestSplits.length > 0 ? (
-            <div className="grid gap-3 md:grid-cols-3">
-              {latestSplits.map((split) => (
-                <button
-                  key={split.id}
-                  type="button"
-                  onClick={() => router.push(`/splitter/${split.id}`)}
-                  className="group cursor-pointer min-h-44 rounded-lg border border-border/80 bg-card/80 p-5 text-left shadow-sm transition-colors hover:border-ring/40 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
-                >
-                  <div className="flex h-full flex-col justify-between gap-6">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border/70 bg-accent text-accent-foreground">
-                        <FileText className="h-5 w-5" />
-                      </div>
-                      <div className="min-w-0 space-y-2">
-                        <p className="line-clamp-3 text-lg font-semibold leading-snug text-foreground group-hover:text-primary">
-                          {split.fileName}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="border-t border-border/70 pt-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Received by
-                      </p>
-                      <div className="mt-2 flex items-end justify-between gap-3">
-                        <p className="min-w-0 truncate text-base font-bold leading-tight text-sky-600">
-                          {split.receivedByName}
-                        </p>
-                        <div className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                          <CalendarDays className="h-4 w-4" />
-                          <span>{split.createdAtLabel}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-lg border border-dashed border-border/80 bg-card/60 px-4 py-6 text-sm text-muted-foreground">
-              No split files yet.
-            </div>
-          )}
         </section>
       </div>
     </div>
