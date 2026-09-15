@@ -65,6 +65,7 @@ const RECEIVING_TEAM_NAMES = [
   "Bryce Vogt",
   "Brad Drobka",
   "Bob Kurtz",
+  "Randy Ramirez",
 ];
 
 const DAILY_LEADERBOARD_STORAGE_KEY = "dashboard-daily-receiving-leaderboard";
