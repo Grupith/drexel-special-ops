@@ -43,6 +43,7 @@ import {
   Loader2,
   ScrollText,
   Store,
+  TriangleAlert,
   UserRound,
 } from "lucide-react";
 
@@ -547,6 +548,17 @@ export function NewSplitModal({
                 <FolderUp className="size-4 text-muted-foreground" />
                 Document
               </Label>
+
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-900 dark:text-amber-200"
+              >
+                <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+                <p>
+                  Scan and upload only one page at a time. Multi-page PDFs are
+                  not supported.
+                </p>
+              </div>
 
               <div
                 className={`relative overflow-hidden rounded-lg border border-dashed transition-colors ${
